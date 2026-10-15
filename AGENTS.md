@@ -1,36 +1,44 @@
-# AGENTS.md — English-Exam-U1-U2
+# AGENTS.md — اختبار اللغة العربية (الوحدة الأولى)
 
-Repository memory for future sessions. See `README.md` for the full specification.
+ذاكرة المستودع للجلسات القادمة. راجع `README.md` للاطّلاع على المواصفات الكاملة.
 
-## What this is
-A single-student English exam website for Units 1–2. Arabic (RTL) interface,
-English (LTR) exam content. Official total score is exactly **120 marks**.
+## ما هو هذا المشروع
+موقع اختبار عربي لطالب واحد — الصف الثاني الثانوي بكالوريا، الوحدة الأولى.
+الواجهة والمحتوى بالعربية (RTL) بالكامل. الدرجة الرسمية **١٢٠** درجة بالضبط.
 
-## Layout
-- `server.js` — single Node.js entry point (built-ins only, no dependencies).
-  Serves `public/`, exposes `/api/exam` (no answer key), `/api/attempt`,
-  `/api/submit` (server-side grading). Run with `node server.js` (port 3000).
-- `bank.js` — question bank + blueprint + rubric + `validateBank()` +
-  `gradeObjective()`. Answer key lives here and never reaches the browser.
-- `public/` — `index.html`, `styles.css`, `app.js` (client logic).
-- `tools/validate.js` — `node tools/validate.js` validates the bank, prints the
-  blueprint, and writes `data/question-bank.json` (dev traceability record).
-- `references/questions.md` — OCR source material (do not delete).
+## البنية
+- `server.js` — نقطة التشغيل الوحيدة (Node.js، بلا اعتماديات خارجية). يقدّم `public/`
+  ويكشف: `/api/exam` (بلا مفتاح إجابة)، `/api/attempt`، `/api/submit` (التصحيح على الخادم).
+  التشغيل: `node server.js` (المنفذ 3000).
+- `bank.js` — بنك الأسئلة + المخطط + سلّم التعبير + `validateBank()` + `gradeObjective()`
+  + `gradeSurprise()` + `sourceLedger()`. مفتاح الإجابة هنا ولا يصل إلى المتصفح.
+- `public/` — `index.html`، `styles.css`، `app.js`، و`fonts/` (خط Noto Naskh Arabic مُضمَّن).
+- `tools/validate.js` — `node tools/validate.js` يتحقق من البنك ويطبع المخطط ويكتب
+  `data/question-bank.json` (سجل توثيق للتطوير).
+- `reference/` — المصدران الأصليان (ملف PDF + `exam1-noanswers.md`). لا تُحذف.
 
-## Blueprint (must total 120)
-vocab 30 · grammar 30 · verbforms 10 · reading 10 · translation 10 ·
-literature 10 · writing 20. 89 objective questions + 1 writing task.
+## مخطط الدرجات (يجب أن يساوي ١٢٠)
+القراءة والفهم ٢٤ · النصوص الأدبية ٢٠ · النصوص الشعرية ١٦ · البلاغة ١٢ ·
+النحو ١٦ · الإملاء ٨ · المهارات الحجاجية ٦ · التعبير ١٨.
+المجموع: ٥١ سؤالًا موضوعيًّا + ٢ سؤال مفاجئ (نقاط منفصلة) + سؤال تعبير واحد.
 
-## Rules that must not regress
-- Blueprint total === 120; writing rubric sums to 20; writing stays "pending".
-- The `/api/exam` payload must never contain answers (`correctAnswer`).
-- Timer: 60-min nominal, x3 while tab inactive, hard 90-min real limit with
-  auto-submit (`timeup_60` / `timeup_90`).
-- Bonuses are a separate capped display (max 20) and never change the 120.
-- `data/` and `server.log` are runtime artifacts (git-ignored).
+## قواعد لا يجوز كسرها
+- مجموع المخطط === ١٢٠؛ سلّم التعبير يساوي ١٨؛ درجة التعبير تبقى «قيد الانتظار».
+- لا يجوز أن تحتوي حمولة `/api/exam` على أي إجابة (`correctAnswer`).
+- الأسئلة المفاجئة (`J01`, `J02`) تظهر كأسئلة عادية ولا يُفصح عنها قبل بدء الامتحان.
+- المؤقّت: ٦٠ دقيقة اسمية، ×٣ أثناء خمول الصفحة، وحدّ فعلي ٩٠ دقيقة مع تسليم تلقائي
+  (`timeup_60` / `timeup_90`).
+- الخمول: كل ٣٠ ثانية بلا تفاعل = تنبيه؛ وكل تنبيهين = خصم ٦٠ ثانية ثم تصفير العدّاد.
+- `data/` و`server.log` ملفات وقت التشغيل (مُهمَلة في git).
 
-## Test approach
-Automated browser tests use `puppeteer-core` against system Chromium
-(`/usr/bin/chromium`); no headless browser package is bundled with the repo.
-The attempt lock keys on IP + user-agent, so tests that start several
-attempts need distinct browser contexts (and user agents) or a server restart.
+## ملاحظات المصدر
+- ملف PDF يستخدم خطًّا خطّه الداخلي معطوب، لذا استُخرج النص عبر OCR (tesseract `ara`)
+  وصُحّح يدويًّا مقابل التصحيحات الخضراء في الـPDF.
+- التصحيحات الخضراء تمثل مفتاح الإجابة الرسمي، وهي موسومة `green:true` في `bank.js`.
+- التشكيل أُضيف للنصوص والأبيات والاقتباسات؛ وما لم يُتحقق منه بدقة موسوم للمراجعة اليدوية.
+
+## أسلوب الاختبار
+اختبارات المتصفح الآلية تستخدم `puppeteer-core` مع Chromium النظامي
+(`/usr/bin/chromium`)؛ لا تُضمَّن حزمة متصفح داخل المستودع.
+قفل المحاولة يعتمد على IP + user-agent، لذا تحتاج الاختبارات التي تبدأ محاولات
+متعددة إلى سياقات متصفح مختلفة (وبيانات مستخدم مختلفة) أو إعادة تشغيل الخادم.

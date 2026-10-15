@@ -1,168 +1,587 @@
 'use strict';
 /*
- * Question bank for the Units 1-2 English exam.
- * Each item: { id, section, topic, q, options, answer, explanation, marks, src }
- *   answer = index of the single correct option.
- *   src    = traceability record: { file, excerpt, treatment }.
- * The answer key is used only server-side for grading and is never sent to the browser.
+ * بنك أسئلة اختبار اللغة العربية — الوحدة الأولى (الصف الثاني الثانوي بكالوريا).
+ * كل عنصر: { id, section, topic, q, options, answer, explanation, marks, src }
+ *   answer = فهرس الخيار الصحيح الوحيد (يُستخدم على الخادم فقط).
+ *   src    = سجل التوثيق: { file, page, excerpt, treatment, green }.
+ *
+ * المصدران (راجع reference/):
+ *   exam1-noanswers.md  — نسخة OCR نصية (غير موثوقة بذاتها).
+ *   ملف PDF الأصلي       — المرجع البصري، وفيه التصحيحات المعلَّمة بالأخضر.
+ * إجابات «green:true» مأخوذة من التصحيح الأخضر في ملف الـPDF مباشرةً.
  */
+
+const SRC_MD = 'reference/exam1-noanswers.md';
+const SRC_PDF = 'reference/اختبار لغة عربية الوحدة الأولي + نموذج الإجابة للصف الثاني الثانوي بكالوريا الترم الأول 2027 من كتاب ن والقلم.pdf';
+
+/* ---------------- مخطط الدرجات (المجموع = 120) ---------------- */
 const BLUEPRINT = [
-  { section: 'vocab',       arName: 'المفردات',             type: 'mcq',         count: 30, marksEach: 1,   max: 30 },
-  { section: 'grammar',     arName: 'القواعد',              type: 'mcq',         count: 30, marksEach: 1,   max: 30 },
-  { section: 'verbforms',   arName: 'صيغ الكلمات والأفعال', type: 'gap',         count: 10, marksEach: 1,   max: 10 },
-  { section: 'reading',     arName: 'القراءة والاستيعاب',   type: 'reading',     count: 10, marksEach: 1,   max: 10 },
-  { section: 'translation', arName: 'الترجمة',              type: 'translation', count: 4,  marksEach: 2.5, max: 10 },
-  { section: 'literature',  arName: 'الأدب (حول العالم)',   type: 'literature',  count: 5,  marksEach: 2,   max: 10 },
-  { section: 'writing',     arName: 'الكتابة (فقرة)',       type: 'writing',     count: 1,  marksEach: 20,  max: 20 },
+  { section: 'reading',    arName: 'القراءة والفهم',     type: 'mcq', count: 12, marksEach: 2, max: 24 },
+  { section: 'prose',      arName: 'النصوص الأدبية',     type: 'mcq', count: 10, marksEach: 2, max: 20 },
+  { section: 'poetry',     arName: 'النصوص الشعرية',     type: 'mcq', count: 8,  marksEach: 2, max: 16 },
+  { section: 'rhetoric',   arName: 'البلاغة',            type: 'mcq', count: 6,  marksEach: 2, max: 12 },
+  { section: 'grammar',    arName: 'النحو',              type: 'mcq', count: 8,  marksEach: 2, max: 16 },
+  { section: 'spelling',   arName: 'الإملاء',            type: 'mcq', count: 4,  marksEach: 2, max: 8  },
+  { section: 'expression', arName: 'المهارات الحجاجية',  type: 'mcq', count: 3,  marksEach: 2, max: 6  },
+  { section: 'writing',    arName: 'التعبير (المقالي)',  type: 'writing', count: 1, marksEach: 18, max: 18 },
 ];
+
+/* ---------------- سلّم تصحيح التعبير (المجموع = 18) ---------------- */
 const WRITING_RUBRIC = [
-  { key: 'relevance',    ar: 'الالتزام بالموضوع', marks: 4 },
-  { key: 'grammar',      ar: 'القواعد',            marks: 5 },
-  { key: 'vocabulary',   ar: 'المفردات',           marks: 4 },
-  { key: 'spelling',     ar: 'الإملاء والترقيم',   marks: 3 },
-  { key: 'organization', ar: 'الترابط والتنظيم',   marks: 4 },
+  { key: 'task',         ar: 'تحقيق المطلوب ووضوح الفكرة',   marks: 4 },
+  { key: 'language',     ar: 'صحة اللغة والتراكيب',          marks: 4 },
+  { key: 'grammar',      ar: 'النحو والصرف',                 marks: 4 },
+  { key: 'spelling',     ar: 'الإملاء وعلامات الترقيم',      marks: 3 },
+  { key: 'organization', ar: 'ترتيب الأفكار وترابطها',       marks: 3 },
 ];
-const READING_PASSAGE = {
-  title: 'The Hidden Side of Fame',
-  text: [
-    'Fame has always attracted people throughout history. Many dream of being recognised, admired, and loved by others. But behind the bright lights of success, there is often a hidden side that few ever see.',
-    'Every one of us dreams of becoming famous one day or another. Sportsmen and champions of games and sports enjoy great fame. Film stars, singers and musicians are known all over the world. They have admirers and fans who follow them on social media and hang their photographs on the walls of their houses. Politicians and great men are famous people and their fame goes far and wide. Anyhow, fame is not easily obtained, but it is the result of hard work and suffering.',
-    'The life of famous people is not an easy one. It is very busy and full of troubles and responsibilities. They appear smiling but in fact, they are unhappy and their time is arranged for them. Newspapers and magazines write about them and sometimes about their private lives, so this annoys them. Their smallest mistakes appear larger to those who dislike them. Though fame has its troubles, a great number of people desire to get it.',
-  ].join('\n\n'),
-};
+
+/* ---------------- نصوص القراءة ---------------- */
+const READING_PASSAGES = [
+  {
+    id: 'RD1',
+    title: 'العلم بين القانون والضمير (المقرر)',
+    text: 'إِنَّ الْعَلَاقَةَ بَيْنَ الْقَانُونِ وَالضَّمِيرِ عَلَاقَةُ تَكَامُلٍ لَا تَعَارُضٍ؛ فَالْقَانُونُ يُحَدِّدُ الْحَدَّ الْأَدْنَى الْمُلْزِمَ لِلْجَمِيعِ، أَمَّا الضَّمِيرُ فَيَدْفَعُ الْإِنْسَانَ إِلَى مَا هُوَ أَسْمَى مِنْ مُجَرَّدِ الِالْتِزَامِ الشَّكْلِيِّ. فَالْبَاحِثُ الَّذِي يَمْتَلِكُ ضَمِيرًا حَيًّا لَنْ يَنْتَظِرَ نَصًّا قَانُونِيًّا لِيَمْنَعَهُ مِنْ تَزْوِيرِ النَّتَائِجِ، وَالْمُؤَسَّسَةُ الَّتِي تُؤْمِنُ بِالْمَسْئُولِيَّةِ لَنْ تَبْحَثَ عَنْ ثُغْرَةٍ قَانُونِيَّةٍ لِتُبَرِّرَ سُلُوكًا يَضُرُّ بِالْمُجْتَمَعِ. إِنَّ التَّحَدِّيَ الْحَقِيقِيَّ فِي عَصْرِنَا لَا يَتَمَثَّلُ فِي إِنْتَاجِ مَزِيدٍ مِنَ الِاكْتِشَافَاتِ فَحَسْبُ، بَلْ فِي تَرْبِيَةِ وَعْيٍ عِلْمِيٍّ وَأَخْلَاقِيٍّ مَعًا؛ فَكُلُّ طَالِبٍ يَتَعَلَّمُ الْيَوْمَ مَهَارَةً قَدْ يُصْبِحُ غَدًا بَاحِثًا أَوْ مُهَنْدِسًا أَوْ مُطَوِّرًا لِتِقْنِيَّةٍ جَدِيدَةٍ، وَمَسْئُولِيَّتُهُ تَبْدَأُ مِنْ إِدْرَاكِهِ أَنَّ الْمَعْرِفَةَ قُوَّةٌ، وَأَنَّ الْقُوَّةَ تَقْتَضِي مُرَاقَبَةَ النَّفْسِ قَبْلَ أَيِّ رِقَابَةٍ خَارِجِيَّةٍ.',
+  },
+  {
+    id: 'RD2',
+    title: 'قطعة القراءة المتحررة',
+    text: 'وَفِي مَعَامِلِ الْهَنْدَسَةِ الْوِرَاثِيَّةِ، يُوَاصِلُ الْإِنْسَانُ مُحَاوَلَاتِهِ فِي مُضَاهَاةِ الْخَالِقِ، يَعْبَثُ بِالْخَلَايَا وَالْجِينَاتِ، يَصْنَعُ طَعَامَهُ مِنَ الْخَطَرِ، وَيَسْتَبْدِلُ بِالنِّظَامِ الْإِلَهِيّ مَعَادِلَاتٍ كِيمِيَائِيَّةً. يَرَى إِدْغَار مُورَان، عَالِمُ الِاجْتِمَاعِ الْفَرَنْسِيّ، أَنَّ الْحَدَاثَةَ الْغَرْبِيَّةَ دَخَلَتْ طَوْرَ «الْهَمَجِيَّةِ الْعَقْلَانِيَّةِ»، حَيْثُ صَارَتِ الْوَحْشِيَّةُ تَتَخَفَّى فِي ثِيَابِ التَّقَدُّمِ. وَالْمُفَارَقَةُ أَنَّ هَذَا الِانْفِصَالَ بَيْنَ الْعِلْمِ وَالْقِيَمِ لَمْ يُحَرِّرِ الْإِنْسَانَ كَمَا زَعَمَ، بَلْ كَبَّلَهُ بِصُورَةٍ جَدِيدَةٍ مِنَ الْعُبُودِيَّةِ: عُبُودِيَّةِ التِّقْنِيَةِ وَالِاسْتِهْلَاكِ. وَلَا يُفْهَمُ مِنْ نَقْدِ الْحَضَارَةِ الْغَرْبِيَّةِ أَنَّنَا نَدْعُو لِرَفْضِهَا جُمْلَةً، أَوِ الِانْغِلَاقِ دُونَهَا.',
+  },
+];
+
+/* ---------------- سؤال التعبير ---------------- */
 const WRITING_PROMPT =
-  'Write a well-organised paragraph of 100-150 words on the topic: "Social media does more harm than good." ' +
-  'Give your opinion, support it with reasons and at least one example, and use vocabulary and grammar from Units 1-2.';
+  'اكتب فقرة حجاجية نقدية (من ٦ إلى ٨ أسطر) تفنّد فيها الرأي القائل بأنّ: «القراءة الرقمية عبر الشاشات ستلغي دور الكتاب الورقي تمامًا». ' +
+  'ابدأ بعرض رأي الخصم (الزعم)، ثم قدّم حجة نقدية مضادة تُبرز قيمة الكتاب الورقي وأثره الذهني والوجداني، ' +
+  'وضّمّن فقرتك اسمًا من الأسماء الخمسة مرفوعًا بعلامة فرعية، مع الالتزام بالدقة الإملائية في تمييز التاء المربوطة والهاء.';
+
 const Q = [];
-const SRC = 'references/questions.md';
-const vocab = [
-  ['A lifestyle account shows only carefully selected achievements and removes ordinary moments. The account is best described as...', ['balanced', 'curated', 'mindful', 'unrelated'], 1, 'A "curated" account presents only selected, ideal content.', 'a lifestyle account shows only carefully selected'],
-  ['Doctors recommend regular exercise to counter the effects of a ... lifestyle.', ['active', 'energetic', 'sedentary', 'athletic'], 2, 'A "sedentary" lifestyle involves little physical activity.', 'Doctors recommend regular exercise to counter the effects of a/an routine'],
-  ['A lifestyle with very little movement is described as...', ['balanced', 'mindful', 'sedentary', 'curated'], 2, '"Sedentary" means very little movement.', 'A lifestyle with very little movement is'],
-  ['Paying careful attention to the present moment is called...', ['social comparison', 'mindfulness', 'agency', 'nutrition'], 1, '"Mindfulness" is careful attention to the present moment.', 'Paying careful attention to the present moment is'],
-  ['Language that strongly favours one side shows...', ['bias', 'agency', 'nutrition', 'pressure'], 0, '"Bias" is one-sidedness that supports one point of view.', 'Language that strongly favors one side shows'],
-  ['Food that provides the body with what it needs supports good...', ['comparison', 'nutrition', 'isolation', 'advertising'], 1, '"Nutrition" is about the food the body needs.', 'Food that provides the body with what it needs supports good'],
-  ['A ... is a health expert who gives advice on diet.', ['representative', 'curator', 'nutritionist', 'journalist'], 2, 'A "nutritionist" advises about diet.', 'a health expert who gives advice on diet and nutrition'],
-  ['The power to make choices and act independently is...', ['bias', 'agency', 'isolation', 'pressure'], 1, '"Agency" is the power to make choices and act.', 'The power to make choices and act independently is'],
-  ['A barrier in the environment that limits genuine choice is a ...', ['structural barrier', 'highlight reel', 'rhetorical question', 'intensifier'], 0, 'A "structural barrier" is an environmental obstacle to choice.', 'A barrier in the environment that limits genuine choice is a'],
-  ["Belief in one's own ability to succeed is...", ['bias', 'social comparison', 'sedentary behaviour', 'self-efficacy'], 3, '"Self-efficacy" is belief in one\'s ability to succeed.', "Belief in one's ability to succeed is"],
-  ['The word "sedentary" means...', ['energetic', 'active', 'mindful', 'inactive'], 3, '"Sedentary" is closest in meaning to "inactive".', 'The word "sedentary" means'],
-  ['The ability to recover after difficulty is...', ['resilience', 'curation', 'bias', 'pressure'], 0, '"Resilience" is the ability to recover and adapt.', 'The ability to recover after difficulty is'],
-  ['A gentle policy that encourages a choice without forcing it is a ...', ['comparison', 'nudge', 'claim', 'bias'], 1, 'A "nudge" gently encourages without removing freedom.', 'A gentle policy that encourages a choice without forcing it is a'],
-  ['The phrase "highlight-reel effect" is closest in meaning to...', ['real image', 'complete picture', 'curated reality', 'honest view'], 2, 'It means showing only selected, idealised moments.', 'The phrase "highlight-reel effect" is closest in meaning to'],
-  ['Challenger is known as brilliant but extremely ...', ['careless', 'shy', 'difficult', 'ordinary'], 2, 'In the source, Challenger is brilliant but very difficult.', 'Challenger is known as brilliant but extremely'],
-  ["\"Constant criticism can seriously damage a teenager's self-esteem.\" The underlined noun has an antonymous meaning to...", ['self-respect', 'self-worth', 'self-confidence', 'self-doubt'], 3, 'Self-esteem means self-worth; its antonym is self-doubt.', 'Constant criticism can seriously damage a teenagers self-esteem'],
-  ['"The report used hedging to avoid making absolute claims." The underlined noun is closest in meaning to...', ['certainty', 'caution', 'confidence', 'assertiveness'], 1, '"Hedging" expresses caution rather than certainty.', 'The report used hedging to avoid making absolute claims'],
-  ['A fair report should present both viewpoints using...', ['emotional language', 'persuasive language', 'neutral language', 'exaggerated language'], 2, 'A fair report uses neutral language.', 'A fair report should present both viewpoints using'],
-  ['Sharing only awards and celebrations online can create a ...', ['social connection', 'highlight-reel effect', 'balanced view', 'factual impression'], 1, 'Showing only best moments creates the highlight-reel effect.', 'Sharing only awards and celebrations online can create a'],
-  ['The importance of regular sleep is often ... by busy students.', ['appreciated', 'exaggerated', 'underestimated', 'measured'], 2, 'Busy students often underestimate the importance of sleep.', 'The importance of regular sleep is often by busy students'],
-  ['The researchers wanted results that could be tracked over time. They wanted results that were...', ['imaginary', 'emotional', 'selective', 'measurable'], 3, '"Measurable" results can be tracked.', 'The researchers wanted results that could be tracked over time'],
-  ['Packaged snacks with added sugar and preservatives are usually...', ['natural food', 'fresh produce', 'processed food', 'raw food'], 2, 'Such snacks are "processed food".', 'Packaged snacks with added sugar and preservatives are usually'],
-  ['An ... culture usually places strong emphasis on personal freedom and independence.', ['collective', 'cooperative', 'individualistic', 'communal'], 2, '"Individualistic" emphasises personal freedom.', 'An culture usually places strong emphasis on personal freedom and independence'],
-  ['Regular exercise can ... improved physical and emotional well-being.', ['result in', 'damage', 'avoid', 'cancel'], 0, '"Result in" means lead to.', 'Regular exercise can improved physical and emotional wellbeing'],
-  ['Losing interest in hobbies for a long time and feeling persistently sad may indicate...', ['mindfulness', 'nutrition', 'well-being', 'depression'], 3, 'These are possible signs of depression.', 'Losing interest in hobbies for a long time and feeling persistently sad'],
-  ['"Daily mindfulness exercises helped the athlete remain calm." The underlined noun has an antonymous meaning to...', ['awareness', 'focus', 'distraction', 'attentiveness'], 2, 'Mindfulness = attentiveness; its antonym is distraction.', 'Daily mindfulness exercises helped the athlete remain calm'],
-  ['Checking whether you really need an item before buying it shows...', ['social comparison', 'mindful consumption', 'processed food', 'dissatisfaction'], 1, 'Deciding carefully before buying is mindful consumption.', 'Checking whether you really need an item before buying it'],
-  ["Improving sleep quality and reducing daily stress may strengthen a person's...", ['dissatisfaction', 'competition', 'isolation', 'well-being'], 3, 'These habits strengthen well-being.', 'Improving sleep quality and reducing daily stress may strengthen a persons'],
-  ['Learning to plan your time can help you ... a heavy workload.', ['fail to meet', 'result in', 'cope with', 'set up'], 2, '"Cope with" means manage a heavy workload.', 'Learning to plan your time can help you a heavy workload'],
-  ['"Her resilience helped her recover quickly after several disappointing results." The underlined noun is closest in meaning to...', ['vulnerability', 'adaptability', 'fragility', 'weakness'], 1, 'Resilience is close to adaptability (ability to recover).', 'Her resilience helped her recover quickly after several disappointing results'],
-];
-vocab.forEach((v, i) => Q.push({ id: 'V' + String(i + 1).padStart(2, '0'), section: 'vocab', topic: 'Unit 1 - Well-being, media & society', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 1, src: { file: SRC, excerpt: v[4], treatment: 'rephrased/corrected' } }));
-const grammar = [
-  ['He remained calm ... he was facing a very difficult situation.', ['although', 'because of', 'despite', 'due to'], 0, 'A clause follows, so the conjunction "although" is needed.', 'He remained calm he was facing a very difficult situation'],
-  ['"Constantly telling students that they cannot succeed can be disempowering." The underlined adjective is closest in meaning to...', ['supportive', 'motivating', 'discouraging', 'empowering'], 2, 'Disempowering is close to discouraging.', 'Constantly telling students that they cannot succeed can be disempowering'],
-  ['Giving learners more freedom can encourage them to ... of their own progress.', ['lose control', 'take ownership', 'give up', 'avoid responsibility'], 1, '"Take ownership" fits with encouraging independence.', 'Giving learners more freedom can encourage them to of their progress'],
-  ['In a ... workplace, employees are expected to support shared goals and cooperate closely.', ['competitive', 'collectivist', 'individualistic', 'independent'], 1, 'Shared goals and cooperation describe a collectivist workplace.', 'In a workplace, employees are expected to support shared goals'],
-  ['Which sentence is the most neutral?', ['Anyone who rests is lazy.', 'This routine is absolutely perfect for everyone.', 'Some students may find an early routine helpful.', 'Only unsuccessful people miss a workout.'], 2, 'It uses cautious, unbiased language.', 'Which sentence is the most neutral?'],
-  ['Which factor is most likely to weaken a claim based on a school survey?', ['A clearly described sample', 'A very small or unrepresentative sample', 'A question about stress', 'A table showing percentages'], 1, 'An unrepresentative sample weakens a claim.', 'Which factor is most likely to weaken a claim based on a school survey'],
-  ['"A mindful student thinks before sharing photos online." The underlined adjective has an antonymous meaning to...', ['attentive', 'aware', 'thoughtful', 'careless'], 3, 'Mindful is close to attentive; its antonym is careless.', 'A mindful student thinks before sharing photos online'],
-  ['Which persuasive technique is used in "Do we really want screens to replace every face-to-face experience?"', ['An intensifier', 'A rhetorical question', 'A hedging word', 'A word family'], 1, 'A question asked for effect is a rhetorical question.', 'Do we really want screens to replace every face-to-face experience'],
-  ['Which of the following is an intensifier?', ['might', 'never', 'extremely', 'could'], 2, '"Extremely" strengthens the word it modifies.', 'Which of the following is an intensifier'],
-  ['In "an amazing achievement," "amazing" is an ... expressing personal judgement.', ['intensifier', 'neutral expression', 'evaluative adjective', 'rhetorical question'], 2, '"Amazing" expresses a personal evaluative judgement.', 'In an amazing achievement, amazing is an'],
-  ['Choose the correct sentence. (present-participle clause)', ['Students who sleeps regularly often concentrate more effectively.', 'Students slept regularly often concentrate more effectively.', 'Students sleeping regularly often concentrate more effectively.', 'Sleeping regularly, concentration improves the students.'], 2, '"Students sleeping regularly..." is the correct present-participle clause.', 'Students who sleeps regularly often concentrate more effectively'],
-  ['Choose the correct sentence. (participle sharing the subject)', ['Chosen balanced meals, teenagers can support steady energy levels.', 'Teenagers choosing balanced meals, they can support steady energy levels.', 'Choosing balanced meals, steady energy supports teenagers.', 'Choosing balanced meals, teenagers can support steady energy levels.'], 3, 'The participle "Choosing..." must share the subject "teenagers".', 'Choosing balanced meals, teenagers can support steady energy levels'],
-  ['Choose the correct sentence. (defining relative clause)', ['The habits, that reduce stress are different for each person.', 'The habits which reduce stress can be practiced daily.', 'The habits reducing stress, they can be practiced daily.', 'The habits which reducing stress can be practiced daily.'], 1, '"which reduce stress" is a correct defining relative clause.', 'The habits which reduce stress can be practiced daily'],
-  ['Which of the following is the correct form? (conditional)', ['If schools offered counseling, students may felt better supported.', 'If schools had offer counseling, students would have felt better supported.', 'If schools offer counseling, students would have felt better supported yesterday.', 'If schools offer counseling, students may feel better supported.'], 3, 'Open present conditional with "may" is correct.', 'If schools offered counseling, students may felt better supported'],
-  ['Which of the following is the correct form? (relative clause)', ['Teenagers which practice mindfulness often manage stress more effectively.', 'Teenagers practiced mindfulness, they often manage stress more effectively.', 'Teenagers who practice mindfulness often manage stress more effectively.', 'Practicing mindfulness, stress manages teenagers more effectively.'], 2, 'People take "who", not "which".', 'Teenagers who practice mindfulness often manage stress more effectively'],
-  ['Choose the correct sentence. (non-defining relative clause)', ['The bridge, which was built in 1920, is still in use.', 'The bridge, who was built in 1920, is still in use.', 'The bridge, whose was built in 1920, is still in use.', 'The bridge, where was built in 1920, is still in use.'], 0, '"which" refers to the thing "the bridge".', 'The bridge, which was built in 1920, is still in use'],
-  ['Choose the correct sentence. (relative pronoun for a thing)', ['The report who was published yesterday has attracted considerable attention.', 'The report where was published yesterday has attracted considerable attention.', 'The report whose was published yesterday has attracted considerable attention.', 'The report that was published yesterday has attracted considerable attention.'], 3, '"that" introduces the relative clause for a thing.', 'The report that was published yesterday has attracted considerable attention'],
-  ['Which of the following is the correct form? (reduced relative, plural subject)', ['The documents finding in the archive were more valuable than expected.', 'The documents found in the archive was more valuable than expected.', 'The documents found in the archive were more valuable than expected.', 'The documents were found in the archive were more valuable than expected.'], 2, 'Reduced passive "found" + plural verb "were".', 'The documents found in the archive were more valuable than expected'],
-  ['Which of the following is the correct form? (reduced relative, present participle)', ['The woman waiting outside is the director of the company.', 'The woman waited outside is the director of the company.', 'The woman waiting outside are the director of the company.', 'The woman to waiting outside is the director of the company.'], 0, 'Present participle "waiting outside" modifies "the woman".', 'The woman waiting outside is the director of the company'],
-  ['Choose the correct sentence. (passive + reduced relative)', ['The candidates selecting for the final interview will be contacted tomorrow.', 'The candidates selected for the final interview will be contacted tomorrow.', 'The candidates selected for the final interview will be contact tomorrow.', 'The candidates were selected for the final interview will be contacted tomorrow.'], 1, 'Reduced passive "selected" + future passive "will be contacted".', 'The candidates selected for the final interview will be contacted tomorrow'],
-  ['The museum, ... was renovated last year, attracts thousands of visitors.', ['that', 'which', 'where', 'what'], 1, '"which" is used for things in a non-defining clause.', 'The museum, was renovated last year, attracts thousands of visitors'],
-  ['... enough evidence, the committee would reconsider its decision.', ['If there were', 'If there is', 'If there will be', 'If there had'], 0, 'Second conditional: "If there were..., would reconsider".', 'enough evidence, the committee would reconsider its decision'],
-  ['Students ... regularly read outside class tend to develop stronger vocabulary.', ['which', 'whose', 'who', 'whom'], 2, '"who" refers to people who read outside class.', 'Students regularly read outside class tend to develop stronger vocabulary'],
-  ['... by their health goals, many individuals choose to adopt a more active lifestyle.', ['Motivating', 'Motivated', 'Motivate', 'Who motivated'], 1, 'Reduced passive "Motivated by...".', 'by their health goals, many individuals choose to adopt a more active lifestyle'],
-  ['If the study ... more schools, the findings would have been more conclusive.', ['includes', 'have included', 'included', 'had included'], 3, 'Third conditional: "If the study had included...".', 'If the study more schools, the findings would have been more conclusive'],
-  ["... having free time, let's have coffee together.", ['Unless', 'If', 'Without', 'In case of'], 1, '"If" introduces the condition for the invitation.', "having free time, lets have coffee together"],
-  ["You can't have a good job ... good qualifications.", ['unless', 'if', 'without', 'in case'], 2, '"without" fits the negative meaning.', "You cant have a good job good qualifications"],
-  ["He was very careful, ... he wouldn't make that silly mistake.", ["Wasn't he", 'Were he', 'Is he', "Isn't he"], 1, 'Inverted conditional: "Were he careful, he wouldn\'t...".', "careful, he wouldnt make that silly mistake"],
-  ['No sooner ... she finished speaking than the audience erupted into applause.', ['had', 'did', 'hardly had', 'scarcely had'], 0, '"No sooner had she finished..." is the correct inversion.', 'she finished speaking than the audience erupted into applause'],
-  ['Not ... to the meeting, Hany decided not to attend.', ['invite', 'inviting', 'invited', 'to invite'], 2, 'Reduced passive negative: "Not invited to...".', 'to the meeting, Hany decided not to attend'],
-];
-grammar.forEach((v, i) => Q.push({ id: 'G' + String(i + 1).padStart(2, '0'), section: 'grammar', topic: 'Units 1-2 Grammar', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 1, src: { file: SRC, excerpt: v[4], treatment: 'copied/corrected' } }));
-const verbforms = [
-  ["Supportive relationships can strengthen a young person's ... (resilient).", ['resilient', 'resilience', 'resiliently', 'resiliences'], 1, 'A possessive noun needs the noun form "resilience".', '(resilient) after setbacks'],
-  ['The new ramp improved the ... of the community sports centre. (accessible)', ['accessible', 'access', 'accessibly', 'accessibility'], 3, '"the ... of" needs the noun "accessibility".', 'The new ramp improved the (accessible) of the community sports center'],
-  ["Regular exercise has a ... effect on teenagers' mental health. (significance)", ['significance', 'significant', 'significantly', 'signify'], 1, 'An adjective is needed before the noun "effect".', 'Regular exercise has a significance effect on teenagers mental health'],
-  ['Schools should encourage every student to ... in physical activity. (participation)', ['participation', 'participate', 'participating', 'participant'], 1, 'After "to" we need the base verb "participate".', 'Schools should encourage every student to (participation) in physical activity'],
-  ['The final match was highly ... until the final whistle. (compete)', ['compete', 'competition', 'competitive', 'competitively'], 2, 'An adjective is needed after "highly".', 'The final match was highly compete until the final whistle'],
-  ['Affordable facilities improve the ... of physical activity for young people. (accessible)', ['accessible', 'access', 'accessibility', 'accessibly'], 2, 'The noun "accessibility" is required.', 'Affordable facilities improve the accessible of physical activity'],
-  ['Clear information can ... students to make more independent health choices. (power)', ['power', 'powerful', 'empower', 'empowerment'], 2, 'A verb is needed after "can": "empower".', 'Clear information can power students to make more independent health choices'],
-  ['Creative activities improve cognitive ... and help people adapt. (flexible)', ['flexible', 'flexibly', 'flexibility', 'flex'], 2, 'The noun "flexibility" is required.', 'Creative activities improve cognitive flexible'],
-  ['The students participated ... in the school sports competition. (active)', ['active', 'actively', 'activity', 'activeness'], 1, 'An adverb is needed to modify "participated".', 'The students participated active in the school sports competition'],
-  ['Teenagers ... by supportive families may maintain healthier habits. (encourage)', ['encourage', 'encouraging', 'encouraged', 'encouragement'], 2, 'Reduced passive "encouraged by...".', 'Teenagers encourage by supportive families may maintain healthier habits'],
-];
-verbforms.forEach((v, i) => Q.push({ id: 'F' + String(i + 1).padStart(2, '0'), section: 'verbforms', topic: 'Word & verb forms', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 1, src: { file: SRC, excerpt: v[4], treatment: 'corrected' } }));
-const reading = [
-  ['What is the main idea of the passage?', ['Famous people are always happy and free.', 'Fame brings both admiration and difficulties.', 'Only sportsmen can be famous.', 'Fame is easy to get if you work a little.'], 1, 'The passage presents both the admiration and the troubles of fame.'],
-  ['From the passage, we can infer that most famous people...', ['have no responsibilities', 'control their own time freely', 'may feel lonely or stressed despite their success', 'enjoy reading about themselves in newspapers'], 2, 'The passage says they appear smiling but are in fact unhappy.'],
-  ['Famous people may appear smiling although...', ['they have admirers and fans', 'their time is arranged for them', 'they are far from being happy', 'their fame has gone far'], 2, 'They smile outwardly but are often unhappy.'],
-  ['"Their time is arranged for them." This means...', ['they are free to do what they like', 'their freedom is far', 'they have free time', 'they are not free to do what they like'], 3, 'It means they are not free to decide their own time.'],
-  ["Why do newspapers and magazines write about famous people's private lives?", ['Because famous people enjoy it', 'To make them happy', "To attract readers' attention", 'To protect their privacy'], 2, "The aim is to attract readers' attention."],
-  ['The word "obtained" in the passage is closest in meaning to...', ['reached', 'given', 'avoided', 'imagined'], 0, '"Obtained" is close to "reached" (gained).'],
-  ['The pronoun "them" in "Newspapers and magazines write about them" refers to...', ['newspapers', 'magazines', 'famous people', 'lives'], 2, '"them" refers to the famous people being written about.'],
-  ["\"Writing about famous people's private lives ... them.\" The verb that fits is...", ['pleases', 'annoys', 'entertains', 'surprises'], 1, 'The passage states it "annoys them".'],
-  ['According to the passage, fame is the result of...', ['luck alone', 'hard work and suffering', 'social media', 'private lives'], 1, 'It is "the result of hard work and suffering".'],
-  ['Which statement is TRUE according to the passage?', ['Famous people have no responsibilities.', 'Famous people can freely arrange their own time.', 'A great number of people still desire fame.', "Newspapers always protect famous people's privacy."], 2, 'The passage ends: "a great number of people desire to get it".'],
-];
-reading.forEach((v, i) => Q.push({ id: 'R' + String(i + 1).padStart(2, '0'), section: 'reading', topic: 'Reading comprehension', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 1, src: { file: SRC, excerpt: 'Fame passage', treatment: 'copied/corrected' } }));
+const push = (arr) => arr.forEach((x) => Q.push(x));
 
-const translation = [
-  ['Choose the correct English translation: "بفضل التقدم الهائل في وسائل الاتصالات، أصبح العالم قرية عالمية، فلا يمكن لأي دولة أن تعيش في معزل."', ['Due to the enormous progress in the means of communications, the world has become a global village. No country can live in isolation.', 'Because of the frightening progress in communication, the world became a global village so every country can live in isolation.', 'Thanks to the huge renaissance in the means of transport, the world has become a global village, so no country can live in balance.', 'Despite the enormous progress in communication matters, the world has become a global village, so any country can live in balance.'], 0, 'This option preserves "means of communications", "global village" and "live in isolation".'],
-  ['Choose the correct English translation: "تنفذ الحكومة الكثير من المشروعات القومية العملاقة كمحطات توليد الطاقة الشمسية واستصلاح الأراضي في صعيد مصر."', ['The government is implementing many mega national projects such as solar energetic stations and land reclamation in Upper Egypt.', 'The government is implementing many mega national projects such as solar power stations and land reclamation in Upper Egypt.', 'The government is implementing many mega international projects such as solar power stations and land reclamation in Upper Egypt.', 'The government is implementing much mega national projects such as solar power stations and ground reclamation in Upper Egypt.'], 1, '"solar power stations" and "national projects" are correct.'],
-  ['Choose the correct Arabic meaning of: "Despite the many benefits of social networking sites, they sometimes spread rumours and create chaos in society."', ['رغم الفوائد الكثيرة لمواقع التواصل الاجتماعي فإنها غالبا تنشر الحقائق وتخلق النظام في المجتمع.', 'رغم الفوائد الكثيرة لمواقع التواصل الاجتماعي فإنها أحيانا تنشر الشائعات وتخلق الفوضى في المجتمع.', 'رغم قلة فوائد مواقع التواصل الاجتماعي فإنها أحيانا تنشر الشائعات وتخلق الفوضى في المجتمع.', 'رغم الفوائد الكثيرة لوسائل المواصلات فإنها أحيانا تنشر الشائعات وتخلق الفوضى في المجتمع.'], 1, '"sometimes" = أحيانا، "rumours" = الشائعات، "chaos" = الفوضى.'],
-  ['Choose the correct Arabic translation: "The government tries hard to reform and develop slums with the aim of providing a decent life for people."', ['تحاول الحكومة جاهدة إصلاح وتطوير المناطق العشوائية بهدف توفير حياة كريمة للناس.', 'تحاول الحكومة بصعوبة إبلاغ وتطوير المناطق العشوائية بهدف توفير حياة كريمة للناس.', 'تحاول الحكومة جاهدة إصلاح وتطوير المناطق العشوائية بهدف توفير حياة حديثة للناس.', 'بالكاد تحاول الحكومة إصلاح وتطوير المناطق العشوائية بهدف توفير حياة كريمة للناس.'], 0, '"tries hard" = تحاول جاهدة، "slums" = المناطق العشوائية، "decent life" = حياة كريمة.'],
+/* ================= القراءة والفهم (Q01–Q12) ================= */
+push([
+  { id: 'Q01', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'حدّد طبيعة العلاقة بين (القانون) و(الضمير) في توجيه سلوك الإنسان من خلال النص المقرر.',
+    options: [
+      'علاقة تنافر؛ فالقانون الصارم يعطّل دور الضمير الفردي تمامًا.',
+      'علاقة تكامل؛ فالقانون يضبط الظاهر، والضمير يرتقي بالباطن الإنساني.',
+      'علاقة تطابق؛ فكلاهما يؤدي الغرض نفسه باستخدام الآليات ذاتها.',
+      'علاقة تعويض؛ فالقانون الرادع يغني عن الضمير عند غيابه.',
+    ], answer: 1,
+    explanation: 'النص يقرر صراحةً أن العلاقة «علاقة تكامل لا تعارض».',
+    src: { file: SRC_MD, page: 1, excerpt: 'إن العلاقة بين القانون والضمير علاقة تكامل لا تعارض', treatment: 'منقول' } },
+  { id: 'Q02', section: 'reading', topic: 'قطعة القراءة المتحررة', marks: 2,
+    q: 'ما الدلالة الضمنية لقول الكاتب: «يصنع طعامه من الخطر»؟',
+    options: [
+      'بيان ندرة الموارد الطبيعية التي تجبر الإنسان على المخاطرة بحياته.',
+      'إبراز الشجاعة في مواجهة تحديات الطبيعة القاسية والقدرة على تطويعها.',
+      'تأكيد المجازفة غير المحسوبة في التعديل الجيني وتجاهل العواقب.',
+      'إظهار شدة الاعتماد على المواد الكيميائية الخطيرة بغرض تحسين المذاق.',
+    ], answer: 2,
+    explanation: 'السياق يتحدث عن العبث بالخلايا والجينات، فالدلالة نقد المجازفة غير المحسوبة.',
+    src: { file: SRC_MD, page: 1, excerpt: 'يصنع طعامه من الخطر', treatment: 'منقول' } },
+  { id: 'Q03', section: 'reading', topic: 'قطعة القراءة المتحررة', marks: 2,
+    q: 'استنتج النتيجة التي انتهت إليها (الحداثة الغربية) حين فصلت العلم عن القيم كما يرى إدغار موران.',
+    options: [
+      'تحرّر الإنسان من القيود التاريخية وانطلاقه نحو الإبداع.',
+      'سقوط الإنسان في عبودية من نوع جديد للآلة والاستهلاك.',
+      'سيطرة الإنسان الكاملة على مقدرات الطبيعة.',
+      'اختفاء الحروب والصراعات نتيجة الرفاهية التقنية.',
+    ], answer: 1,
+    explanation: 'النص: «كبّله بصورة جديدة من العبودية: عبودية التقنية والاستهلاك».',
+    src: { file: SRC_MD, page: 1, excerpt: 'لم يحرر الإنسان كما زعم بل كبله بصورة جديدة من العبودية', treatment: 'منقول' } },
+  { id: 'Q04', section: 'reading', topic: 'قطعة القراءة المتحررة', marks: 2,
+    q: 'حدّد طبيعة القضية المحورية التي يعالجها الكاتب في النص المتحرر.',
+    options: [
+      'التحذير من أضرار الهندسة الوراثية وخطرها المباشر على صحة البشر.',
+      'بيان خطورة تجريد العلم من القيم وأثره في استعباد الإنسان.',
+      'إبراز طغيان النزعة المادية الاستهلاكية وأثرها في توجيه معادلة السوق.',
+      'توضيح الموقف الإسلامي من الحضارات وضرورة الانفتاح على منجزات الغرب.',
+    ], answer: 1,
+    explanation: 'القضية المحورية هي خطر فصل العلم عن القيم، لا الهندسة الوراثية وحدها.',
+    src: { file: SRC_MD, page: 1, excerpt: 'هذا الانفصال بين العلم والقيم لم يحرر الإنسان', treatment: 'منقول' } },
+  { id: 'Q05', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'حدّد نوع الخطاب الغالب في النص المقرر.',
+    options: ['وصفي.', 'سردي.', 'حجاجي.', 'إخباري بحت.'], answer: 2,
+    explanation: 'النص يعرض رأيًا ثم يفنّده بالحجج، فخطابه حجاجي.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'حدد مما يلي نوع الخطاب الغالب في النص', treatment: 'منقول' } },
+  { id: 'Q06', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'ما الاستراتيجية الحجاجية التي وظّفها الكاتب للدفاع عن أطروحته في الفقرة الأولى؟',
+    options: [
+      'سرد أحداث تاريخية تفصيلية وأدلة واضحة.',
+      'دحض الرأي المخالف وبيان قصوره بالمنطق.',
+      'الاعتماد المطلق على القوانين الوضعية والأدلة الرياضية.',
+      'الاستشهاد بالشعر العربي القديم دون مناقشة.',
+    ], answer: 1,
+    explanation: 'الكاتب يعرض رأي من يكتفي بالقانون ثم يفنّده وبيّن قصوره.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'دحض الرأي المخالف وبيان قصوره بالمنطق', treatment: 'منقول', green: true } },
+  { id: 'Q07', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'ما الفرق الجوهري بين وظيفة القانون ووظيفة الضمير كما ورد في العبارة: «القانون يحدد الحد الأدنى الملزم بينما الضمير يدفع الإنسان إلى ما هو أسمى»؟',
+    options: [
+      'القانون إطار خارجي يضع الحد الأدنى، والضمير رقيب داخلي يرقى بالسلوك.',
+      'القانون والضمير يؤديان الوظيفة نفسها دون اختلاف.',
+      'الضمير إطار خارجي، والقانون رقيب داخلي.',
+      'لا فرق بينهما؛ فكلاهما ملزم بالقوة.',
+    ], answer: 0,
+    explanation: 'القانون حدّ خارجي أدنى، والضمير رقيب داخلي أسمى.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'ما الفرق الجوهري بين وظيفة القانون ووظيفة الضمير', treatment: 'منقول' } },
+  { id: 'Q08', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'هل يتعارض القانون مع الضمير في رؤية الكاتب؟',
+    options: [
+      'نعم؛ فهما متناقضان دائمًا.',
+      'لا؛ بل تجمعهما علاقة تكامل فلا يستغني أحدهما عن الآخر لضبط السلوك.',
+      'نعم؛ فالضمير يلغي الحاجة إلى القانون.',
+      'لا؛ لأن القانون يكفي وحده في ضبط النوايا.',
+    ], answer: 1,
+    explanation: 'النص: «علاقة تكامل لا تعارض».',
+    src: { file: SRC_MD, page: 1, excerpt: 'علاقة تكامل لا تعارض', treatment: 'منقول' } },
+  { id: 'Q09', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'أي مما يلي يوضح قصور القانون وحده عن ضبط النوايا كما ورد في النص؟',
+    options: [
+      'قول الكاتب: «غير أن القانون مهما كان دقيقًا يظل إطارًا خارجيًا لا يستطيع مراقبة النوايا».',
+      'قول الكاتب: «القانون يحدد الحد الأدنى الملزم للجميع».',
+      'قول الكاتب: «المؤسسة التي تؤمن بالمسئولية لن تبحث عن ثغرة قانونية».',
+      'قول الكاتب: «المعرفة قوة».',
+    ], answer: 0,
+    explanation: 'العبارة المذكورة تنصّ صراحة على قصور القانون عن مراقبة النوايا.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'القانون مهما كان دقيقا يظل إطارا خارجيا لا يستطيع مراقبة النوايا', treatment: 'منقول' } },
+  { id: 'Q10', section: 'reading', topic: 'المقارنة بين القطعتين', marks: 2,
+    q: 'بالمقارنة بين القطعة المقررة والمتحررة، نجد أن القطعة المقررة تضع أملها في (الوعي الأخلاقي)، بينما القطعة المتحررة:',
+    options: [
+      'تؤكد رفض العلم الحديث جملةً وتدعو للعودة إلى الماضي.',
+      'تؤكد أن الوعي الأخلاقي قد فشل تمامًا أمام طغيان المنفعة.',
+      'تحذّر من كون غياب القيم حول العلم لأداة تسلب إنسانيتنا.',
+      'ترى أن القيم والعلم مساران متنافران لا يمكن أن يلتقيا.',
+    ], answer: 2,
+    explanation: 'القطعة المتحررة تحذّر من تحوّل العلم بلا قيم إلى أداة تسلب الإنسانية.',
+    src: { file: SRC_MD, page: 1, excerpt: 'القطعة المتحررة', treatment: 'منقول' } },
+  { id: 'Q11', section: 'reading', topic: 'العلم بين القانون والضمير', marks: 2,
+    q: 'ما الدلالة التربوية والأخلاقية لمبدأ: «المعرفة قوة، والقوة تقتضي مراقبة النفس قبل أي رقابة خارجية»؟',
+    options: [
+      'أن القوة العلمية لا تحتاج إلى أي ضوابط.',
+      'أن امتلاك العلم يستوجب وازعًا أخلاقيًّا ذاتيًّا يحكم استخدام القوة.',
+      'أن الرقابة الخارجية هي وحدها الكافية.',
+      'أن المعرفة خطر يجب التخلي عنه.',
+    ], answer: 1,
+    explanation: 'المبدأ يدعو إلى اقتران القوة العلمية بالوازع الأخلاقي الذاتي.',
+    src: { file: SRC_PDF, page: 3, excerpt: 'ما الدلالة التربوية والأخلاقية لهذا المبدأ', treatment: 'منقول' } },
+  { id: 'Q12', section: 'reading', topic: 'قطعة القراءة المتحررة', marks: 2,
+    q: 'ما المقصود بمصطلح «الهمجية العقلانية» عند إدغار موران؟',
+    options: [
+      'تفوّق العقل العلمي وتقدّمه المطلق.',
+      'وحشية تتخفى في ثياب التقدم فتسلب المعاني لا الدماء فحسب.',
+      'عودة البشر إلى الحياة البدائية.',
+      'رفض العقل والاعتماد على الخرافة.',
+    ], answer: 1,
+    explanation: 'النص: «صارت الوحشية تتخفى في ثياب التقدم... تسلب فيها المعاني».',
+    src: { file: SRC_MD, page: 1, excerpt: 'الهمجية العقلانية', treatment: 'منقول' } },
+]);
+
+/* ================= النصوص الأدبية (Q13–Q22) ================= */
+push([
+  { id: 'Q13', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'استنتج المانع الحقيقي الذي يحول بين الإنسان وارتكاب الشرور من وجهة نظر المنفلوطي.',
+    options: [
+      'قوة الرقابة المجتمعية على سلوك الأفراد.',
+      'خوف المرء من صرامة العقوبات القانونية.',
+      'يقظة الضمير الحي وصدق المحاسبة الذاتية.',
+      'رهبة الإنسان من شدة العذاب الأخروي.',
+    ], answer: 2,
+    explanation: 'المنفلوطي يرى أن الضمير الحي هو الزاجر الحقيقي، لا الخوف من القانون أو العقاب.',
+    src: { file: SRC_MD, page: 1, excerpt: 'لا ينفع المرء أن يكون زاجره عن الشر خوفه من عذاب النار', treatment: 'منقول' } },
+  { id: 'Q14', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'حدّد المفهوم الذي يراه الكاتب حقيقة الخلق.',
+    options: [
+      'الأخلاق التزام بالقانون فقط.',
+      'الأخلاق خوف من العقاب الدنيوي.',
+      'الخلق أداء الواجب بدافع داخلي صادق.',
+      'الخلق سلوكيات اجتماعية ظاهرة.',
+    ], answer: 2,
+    explanation: 'الكاتب: «الخلق هو أداء الواجب لذاته بقطع النظر عما يترتب عليه من النتائج».',
+    src: { file: SRC_PDF, page: 3, excerpt: 'الخلق أداء الواجب بدافع صادق', treatment: 'منقول', green: true } },
+  { id: 'Q15', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'ما المنظور الذي ينطلق منه الكاتب في معالجته للخلق؟',
+    options: [
+      'منظور مادي نفعي.',
+      'منظور وجداني أخلاقي يرتكز على الضمير والنية.',
+      'منظور سياسي بحت.',
+      'منظور تاريخي محايد.',
+    ], answer: 1,
+    explanation: 'النص يرتكز على الضمير والنية، فهو منظور وجداني أخلاقي.',
+    src: { file: SRC_PDF, page: 3, excerpt: 'منظور وجداني أخلاقي', treatment: 'منقول', green: true } },
+  { id: 'Q16', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'اعتمد المنفلوطي على تكرار تركيب «الخلق هو...» في بداية جمل متتابعة. ما الدلالة الفنية لهذا التكرار؟',
+    options: [
+      'إضعاف الفكرة وتشتيت القارئ.',
+      'توكيد الفكرة الرئيسة وإبراز تعدد صور الخلق ومظاهره.',
+      'سرد أحداث متسلسلة زمنيًّا.',
+      'إظهار تراجع الكاتب عن رأيه.',
+    ], answer: 1,
+    explanation: 'التكرار أسلوب توكيدي يُبرز تعدد مظاهر الخلق ويؤكد الفكرة.',
+    src: { file: SRC_MD, page: 1, excerpt: 'الخلق هو الدمعة... الخلق هو العرق... الخلق هو الصرخة', treatment: 'منقول' } },
+  { id: 'Q17', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'في قول الكاتب: «الخلق هو الدمعة التي تترقرق في عيون الرحيم»، بمَ صوّر الخلق؟ وماذا تضيف هذه الصورة إلى المعنى؟',
+    options: [
+      'صوّره بالدمعة، وهو تجسيد للمعنى المعنوي يُبرز رقّة الوجدان والرحمة.',
+      'صوّره بالدمعة، وهو تشبيه حسّي يقلّل من قيمة الخلق.',
+      'صوّره بالقانون، وهو تجسيد للمعنى الحسّي.',
+      'صوّره بالصرخة، وهو مجاز يرمز للغضب.',
+    ], answer: 0,
+    explanation: 'الدمعة تجسيد للمعنى المعنوي وإبراز لرقّة الوجدان والرحمة.',
+    src: { file: SRC_MD, page: 1, excerpt: 'الخلق هو الدمعة التي تترقرق في عيون الرحيم', treatment: 'منقول' } },
+  { id: 'Q18', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'عندما يرفض الكاتب أن تكون الفضيلة خوفًا أو طمعًا، فهل هذا الرفض للفعل نفسه أم لنية الفعل؟',
+    options: [
+      'رفض للفعل نفسه فلا قيمة له.',
+      'رفض لنية الفعل وغايته النفعية (الطمع أو الخوف)، لا للفعل نفسه.',
+      'رفض للقانون وحده فقط.',
+      'قبول للفعل بنية نفعية.',
+    ], answer: 1,
+    explanation: 'الرفض يتعلق بالنية النفعية لا بالفعل ذاته.',
+    src: { file: SRC_PDF, page: 3, excerpt: 'رفض لنية الفعل وغايته النفعية', treatment: 'منقول' } },
+  { id: 'Q19', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'ما الاستراتيجية الأبرز في بناء نص المنفلوطي؟',
+    options: [
+      'الانتقال من التعريف النظري المجرد إلى التجسيد بالأمثلة الحية ثم الاستنتاج.',
+      'سرد الأحداث التاريخية المتسلسلة زمنيًّا.',
+      'الاعتماد المطلق على الأدلة الرياضية.',
+      'الحوار بين شخصيتين متخيلتين.',
+    ], answer: 0,
+    explanation: 'بدأ بتعريف نظري، ثم جسّده بأمثلة حية، ثم ختم بقاعدة.',
+    src: { file: SRC_PDF, page: 3, excerpt: 'الانتقال من التعريف النظري إلى التجسيد بالأمثلة', treatment: 'منقول', green: true } },
+  { id: 'Q20', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'حدّد نوع الخطاب الغالب في نص المنفلوطي.',
+    options: ['وصفي.', 'حجاجي وجداني.', 'سردي.', 'إخباري بحت.'], answer: 1,
+    explanation: 'النص يجمع الحجة بالوجدان، فخطابه حجاجي وجداني.',
+    src: { file: SRC_PDF, page: 3, excerpt: 'حجاجي وجداني', treatment: 'منقول', green: true } },
+  { id: 'Q21', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'ما موقف المنفلوطي من الاعتماد على (القانون) كأداة وحيدة لتقويم سلوك الأفراد؟',
+    options: [
+      'يكفيه ويغني عن الضمير.',
+      'لا يكفي وحده؛ لأن الضمير الحي هو الزاجر الحقيقي.',
+      'يؤيده لأنه يحقق العدل الكامل.',
+      'يرى أنه أشد أثرًا من الضمير.',
+    ], answer: 1,
+    explanation: 'النص يبدأ بنفي كفاية الخوف من القانون، ويؤكد أن الضمير هو الزاجر الحقيقي.',
+    src: { file: SRC_MD, page: 1, excerpt: 'لا ينفع المرء أن يكون زاجره عن الشر خوفه من القانون', treatment: 'منقول' } },
+  { id: 'Q22', section: 'prose', topic: 'الخلق تاج الفضائل للمنفلوطي', marks: 2,
+    q: 'ما الدافع الحقيقي للفضيلة عند الكاتب؟',
+    options: [
+      'طمع في الثواب.',
+      'خوف من العقاب.',
+      'رغبة في الشهرة.',
+      'إخلاص لله لا طمعًا في ثواب ولا خوفًا من عقاب.',
+    ], answer: 3,
+    explanation: 'النص: «لا تدعى فضيلة إلا إذا كانت خالصة لوجه الله؛ لا طمعًا في ثواب ولا خوفًا من عقاب».',
+    src: { file: SRC_MD, page: 1, excerpt: 'الفضيلة لا تدعى فضيلة إلا إذا كانت خالصة لوجه الله', treatment: 'منقول' } },
+]);
+
+/* ================= النصوص الشعرية (Q23–Q30) — العِلْمُ نُور للرصافي ================= */
+push([
+  { id: 'Q23', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'وردت كلمة (النَّضِيرَا) في البيت السادس، والمقصود بها في السياق:',
+    options: ['القوي المتين.', 'الحسن الصافي.', 'الواسع الشامل.', 'الظاهر المعروف.'], answer: 1,
+    explanation: 'النضير: الحسن الصافي؛ والمراد الخلق الحسن الصافي.',
+    src: { file: SRC_MD, page: 2, excerpt: 'وردت كلمة النضيرا في البيت السادس', treatment: 'منقول', green: true } },
+  { id: 'Q24', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما الدلالة الإيحائية لاستخدام (فَكَمْ) في قوله: «فَكَمْ وَجَدَ الذَّلِيلُ بِهِ اعْتِزَازًا»؟',
+    options: [
+      'بيان مدى صعوبة طريق العلم وحاجة طالبه إلى الصبر.',
+      'التأكيد على كثرة التأثيرات الإيجابية ودور العلم في تغيير الناس.',
+      'إظهار بالغ الشفقة على الأذلاء ومعاناة الحزاني.',
+      'التعبير عن شدة الحنين للماضي.',
+    ], answer: 1,
+    explanation: '(فكم) الخبرية تفيد الكثرة، فهي تؤكد كثرة التأثيرات الإيجابية للعلم.',
+    src: { file: SRC_MD, page: 2, excerpt: 'فكم وجد الذليل به اعتزازا', treatment: 'منقول' } },
+  { id: 'Q25', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'يهدف الرصافي من قوله: «إِذَا ارْتَوَتِ الْبِلَادُ بِفَيْضِ عِلْمٍ ... فَعَاجِزُ أَهْلِهَا يُمْسِي قَدِيرًا» إلى إبراز:',
+    options: [
+      'بيان أثر العلم في تحسين البيئة الزراعية وزيادة الإنتاج.',
+      'تأكيد قدرة العلم على تحويل الطاقات المعطّلة إلى قوى فاعلة.',
+      'إظهار أهمية المساواة بين القوي والضعيف في طلب العلم.',
+      'توضيح دور الدولة في توفير التعليم المجاني.',
+    ], answer: 1,
+    explanation: 'تحوّل العاجز إلى قدير يدل على قدرة العلم على تحويل الطاقات المعطّلة.',
+    src: { file: SRC_MD, page: 2, excerpt: 'إذا ارتوت البلاد بفيض علم فعاجز أهلها يمسي قديرا', treatment: 'منقول' } },
+  { id: 'Q26', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما الغرض من قول الشاعر: «فَلَا تَسْتَنْفِعُوا التَّعْلِيمَ إِلَّا ... إِذَا هَذَّبْتُمُ الطَّبْعَ الشَّرِيرَا»؟',
+    options: [
+      'النصح بضرورة اقتران العلم بالخلق.',
+      'النهي عن التعليم جملةً.',
+      'وصف الطبع البشري بالخير.',
+      'الافتخار بكثرة التعليم.',
+    ], answer: 0,
+    explanation: 'البيت يحثّ على تهذيب الطبع قبل الانتفاع بالتعليم، أي اقتران العلم بالخلق.',
+    src: { file: SRC_MD, page: 2, excerpt: 'فلا تستنفعوا التعليم إلا إذا هذبتم الطبع الشريرا', treatment: 'منقول' } },
+  { id: 'Q27', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما العلاقة بين (نُورًا) و(الظُّلُمَاتِ) في البيت الأول: «كفى بالعلم في الظُّلُمَاتِ نُورًا»؟',
+    options: ['طباق (محسن معنوي).', 'جناس.', 'سجع.', 'تصريع.'], answer: 0,
+    explanation: 'التضاد بين النور والظلمات طباق يوضح المعنى ويؤكده.',
+    src: { file: SRC_MD, page: 2, excerpt: 'كفى بالعلم في الظلمات نورا', treatment: 'منقول' } },
+  { id: 'Q28', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما المقصود بقول الشاعر: «فَإِنَّ عِمَادَ بَيْتِ الْمَجْدِ خُلُقٌ»؟',
+    options: [
+      'أن المال أساس المجد.',
+      'أن الخلق أساس المجد وعموده الذي يقوم عليه.',
+      'أن المجد لا يحتاج إلى أساس.',
+      'أن العلم وحده يكفي للمجد.',
+    ], answer: 1,
+    explanation: '«عماد بيت المجد» أي أساسه؛ فالخلق أساس المجد.',
+    src: { file: SRC_MD, page: 2, excerpt: 'فإن عماد بيت المجد خلق', treatment: 'منقول' } },
+  { id: 'Q29', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما العاطفة المسيطرة على النص؟',
+    options: [
+      'الحزن والأسى.',
+      'الفخر بالعلم والحثّ على اقترانه بالخلق.',
+      'الغضب والثورة.',
+      'الخوف والقلق.',
+    ], answer: 1,
+    explanation: 'النص يفخر بالعلم ويحثّ عليه مقرونًا بالخلق.',
+    src: { file: SRC_MD, page: 2, excerpt: 'العلم نور', treatment: 'استنتاج' } },
+  { id: 'Q30', section: 'poetry', topic: 'العلم نور للرصافي', marks: 2,
+    q: 'ما نوع الأسلوب في قول الشاعر: «كفى بالعلم في الظُّلُمَاتِ نُورًا»؟',
+    options: ['إنشائي طلبي.', 'خبري.', 'إنشائي غير طلبي.', 'استفهام.'], answer: 1,
+    explanation: 'الجملة خبرية تُقرّر كفاية العلم نورًا.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'نوع الأسلوب في الشطر الأول', treatment: 'منقول' } },
+]);
+
+/* ================= البلاغة (Q31–Q36) ================= */
+push([
+  { id: 'Q31', section: 'rhetoric', topic: 'الصورة البيانية', marks: 2,
+    q: 'قول الشاعر: «لَا تَطْلُبِ الْمَاءَ إِلَّا مِنْ مَجَارِيهِ». ما الأسلوب البلاغي في سياقه؟',
+    options: ['تشبيه.', 'كناية.', 'مجاز مرسل.', 'استعارة.'], answer: 1,
+    explanation: 'العبارة كناية عن طلب الأمر من أهله ومصدره الصحيح.',
+    src: { file: SRC_MD, page: 2, excerpt: 'لا تطلب الماء إلا من مجاريه', treatment: 'منقول' } },
+  { id: 'Q32', section: 'rhetoric', topic: 'الصورة البيانية', marks: 2,
+    q: 'في قول الشاعر: «عَيْنًا - قَلْبًا» في البيت الثاني، ما اللون البياني؟',
+    options: [
+      'مجاز مرسل علاقته المحلية.',
+      'تشبيه بليغ يوضح المعنى.',
+      'استعارة مكنية فيها تجسيم.',
+      'مجاز مرسل علاقته الجزئية.',
+    ], answer: 3,
+    explanation: 'ذكر الجزء (العين/القلب) وإرادة الكل، فالعلاقة جزئية.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'مجاز مرسل علاقته الجزئية', treatment: 'منقول', green: true } },
+  { id: 'Q33', section: 'rhetoric', topic: 'الأسلوب', marks: 2,
+    q: 'في قول الشاعر: «قَدْ أَتْعَسَ اللَّهُ عَيْنًا»، ما نوع الأسلوب؟',
+    options: [
+      'خبري لفظًا ومعنى.',
+      'خبري لفظًا إنشائي معنى.',
+      'إنشائي لفظًا ومعنى.',
+      'إنشائي أمر غرضه النصح.',
+    ], answer: 0,
+    explanation: 'الجملة خبرية في لفظها ومعناها، فهي تقرير لا طلب.',
+    src: { file: SRC_PDF, page: 2, excerpt: 'خبري لفظا ومعنى', treatment: 'منقول', green: true } },
+  { id: 'Q34', section: 'rhetoric', topic: 'المحسنات المعنوية', marks: 2,
+    q: 'في قول الشاعر: «أَتَعَسَ - أَسْعَدَ»، ما المحسن البديعي ونوعه؟',
+    options: [
+      'طباق يوضح المعنى ويؤكده.',
+      'جناس تام يحدث نغمًا.',
+      'سجع يوحّد الفواصل.',
+      'مقابلة تشمل أربعة أقسام.',
+    ], answer: 0,
+    explanation: 'التضاد بين أتعس وأسعد طباق يوضح المعنى ويؤكده.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'أتعس - أسعد: طباق يوضح المعنى ويؤكده', treatment: 'منقول', green: true } },
+  { id: 'Q35', section: 'rhetoric', topic: 'الصورة البيانية', marks: 2,
+    q: 'في قول الشاعر: «وَمَنْ بِرُوحِي مِنَ الْأَسْوَاءِ أَفْدِيهِ»، ما الصورة البيانية وسر جمالها؟',
+    options: [
+      'كناية عن شدة الحب تُعطي المعنى مصحوبًا بالدليل.',
+      'تشبيه بليغ يفيد المبالغة في الجمال.',
+      'استعارة تصريحية عن المحبوب.',
+      'مجاز مرسل علاقته الكلية.',
+    ], answer: 0,
+    explanation: 'فداء الروح كناية عن شدة الحب، مع دليل يدعم المعنى.',
+    src: { file: SRC_PDF, page: 6, excerpt: 'كناية عن شدة الحب تعطي المعنى مصحوبا بالدليل', treatment: 'منقول', green: true } },
+  { id: 'Q36', section: 'rhetoric', topic: 'الصورة البيانية', marks: 2,
+    q: 'في قول المنفلوطي: «الْخُلُقُ هُوَ الدَّمْعَةُ الَّتِي تَتَرَقْرَقُ فِي عُيُونِ الرَّحِيمِ»، ما الصورة البيانية؟',
+    options: [
+      'تجسيد للمعنى المعنوي بالصورة الحسّية لإبراز رقّة الوجدان.',
+      'مجاز مرسل علاقته الكلية.',
+      'كناية عن الشجاعة.',
+      'استعارة تصريحية عن العلم.',
+    ], answer: 0,
+    explanation: 'تجسيد المعنى المعنوي (الخلق) في صورة حسية (الدمعة) لإبراز الرحمة والوجدان.',
+    src: { file: SRC_MD, page: 1, excerpt: 'الخلق هو الدمعة التي تترقرق في عيون الرحيم', treatment: 'منقول' } },
+]);
+
+/* ================= النحو (Q37–Q44) ================= */
+push([
+  { id: 'Q37', section: 'grammar', topic: 'الأسماء الخمسة', marks: 2,
+    q: 'عيِّن مما يلي العبارة التي بها اسم معرب بعلامة فرعية:',
+    options: [
+      'إِنَّ ذَا أَبِي أُحِبُّهُ وَأَتَشَرَّفُ بِهِ.',
+      'حَمَى الْجُنُودُ الْوَطَنَ بِأَرْوَاحِهِمْ.',
+      'إِنَّ أَخِي مُحَمَّدًا يُحِبُّهُ النَّاسُ.',
+      'إِنَّ أَخَا سَعِيدٍ يُحِبُّهُ النَّاسُ.',
+    ], answer: 0,
+    explanation: '«ذا» من الأسماء الخمسة، اسم «إن» منصوب بالألف (علامة فرعية).',
+    src: { file: SRC_MD, page: 2, excerpt: 'إن ذا أبي أحبه وأتشرف به', treatment: 'منقول' } },
+  { id: 'Q38', section: 'grammar', topic: 'الممنوع من الصرف', marks: 2,
+    q: 'اختر الجملة التي تحتوي على اسم ممنوع من الصرف لعلتين:',
+    options: [
+      'الْكَذِبُ مِنْ كَبَائِرِ الذُّنُوبِ الْمُحَرَّمَةِ.',
+      'تَسْعَى الدَّوْلَةُ لِبِنَاءِ مَصَانِعَ أَكْثَرَ إِنْتَاجًا.',
+      'تَعْمَلُ الدَّوْلَةُ عَلَى اسْتِصْلَاحِ الصَّحْرَاءِ.',
+      'عَلَيْنَا تَقْدِيرُ الْعُلَمَاءِ لِأَنَّهُمْ وَرَثَةُ الْأَنْبِيَاءِ.',
+    ], answer: 1,
+    explanation: '«مصانع» ممنوعة من الصرف لعلتين: صيغة منتهى الجموع والوصفية.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'تسعى الدولة لبناء مصانع أكثر إنتاجا', treatment: 'منقول', green: true } },
+  { id: 'Q39', section: 'grammar', topic: 'الأسماء الخمسة', marks: 2,
+    q: 'قال الشاعر: «فَلَا تَفْرَحُوا بَعْدَ الصَّفِيِّ بِعِيشَةٍ ... فَكُلُّ أَخِي وُدٍّ سَتَنْأَى مَعَالِمُهُ». أعرب كلمة «أَخِي» حسب سياقها.',
+    options: [
+      'مضاف إليه مجرور بالياء نيابةً عن الفتحة لأنه ممنوع من الصرف.',
+      'مضاف إليه مجرور بالياء؛ لأنه من الأسماء الخمسة.',
+      'فاعل مرفوع بالواو؛ لأنه من الأسماء الخمسة.',
+      'مفعول به منصوب بالألف؛ لأنه من الأسماء الخمسة.',
+    ], answer: 1,
+    explanation: '«أخي» مضاف إليه مجرور وعلامة جرّه الياء لأنه من الأسماء الخمسة.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'مضاف إليه مجرور بالياء', treatment: 'منقول', green: true } },
+  { id: 'Q40', section: 'grammar', topic: 'الممنوع من الصرف', marks: 2,
+    q: 'قال الشاعر: «يُؤْذِي قَلِيلُ سَمَاحِ الْمَرْءِ ذَا كَرَمٍ ... وَيُسْخِطُ الْفَضْلَ مَنْ لَا يَعْرِفُ الْكَرَمَا». أعرب كلمة «ذَا».',
+    options: [
+      'مفعول به منصوب بالألف نيابةً عن الفتحة لأنه من الأسماء الخمسة.',
+      'مفعول به منصوب بالفتحة الظاهرة.',
+      'فاعل مرفوع بالألف.',
+      'مضاف إليه مجرور بالياء.',
+    ], answer: 0,
+    explanation: '«ذا» مفعول به منصوب بالألف نيابة عن الفتحة لأنه من الأسماء الخمسة.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'مفعول به منصوب بالألف نيابة عن الفتحة', treatment: 'منقول', green: true } },
+  { id: 'Q41', section: 'grammar', topic: 'النعت والعدد', marks: 2,
+    q: 'الجملة التي بها اسم معرب بعلامة فرعية:',
+    options: [
+      'صَلَّيْتُ فِي مَسَاجِدِ الْمَدِينَةِ.',
+      'صَلَّيْتُ فِي مَسَاجِدَ أَثَرِيَّةٍ.',
+      'صَلَّيْتُ فِي الْمَسَاجِدِ الْكُبْرَى.',
+      'مَرَرْتُ بِمَسَاجِدِنَا الْعَتِيقَةِ.',
+    ], answer: 1,
+    explanation: '«مساجد» ممنوع من الصرف يُجرّ بالفتحة (علامة فرعية).',
+    src: { file: SRC_PDF, page: 5, excerpt: 'صليت في مساجد أثرية', treatment: 'منقول', green: true } },
+  { id: 'Q42', section: 'grammar', topic: 'كم الخبرية والتمييز', marks: 2,
+    q: 'في قولنا: «كَمْ مِنْ عُلَمَاءَ أَخْلَصُوا لِلْوَطَنِ» و«كَمْ عُلَمَاءَ مُخْلِصِينَ لِلْوَطَنِ»، إعراب كلمة «علماء» في الجملتين:',
+    options: [
+      'مجرورة بـ«من» في الأولى، وتمييز منصوب في الثانية.',
+      'تمييز منصوب في الأولى، ومجرورة بـ«من» في الثانية.',
+      'فاعل مرفوع في الجملتين.',
+      'مفعول به منصوب في الجملتين.',
+    ], answer: 0,
+    explanation: 'مع «كم» المسبوقة بـ«من» تُجرّ، وبدونها تكون تمييزًا منصوبًا.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'كم من علماء أخلصوا - كم علماء مخلصين', treatment: 'منقول' } },
+  { id: 'Q43', section: 'grammar', topic: 'الأسماء الخمسة', marks: 2,
+    q: 'أي الجمل الآتية ورد فيها اسم من الأسماء الخمسة مرفوعًا بعلامة فرعية؟',
+    options: [
+      'أَبُوكَ الرَّحِيمَانِ يَسْعَيَانِ لِرِفْعَتِكَ.',
+      'إِنَّ الْآبَاءَ يَبْنُونَ مُسْتَقْبَلَ الْأَبْنَاءِ.',
+      'إِنَّ لِأَبِي فَضْلًا كَبِيرًا لَا أَنْسَاهُ.',
+      'احْتَرِمْ أَبَا الزَّوْجَةِ فَإِنَّهُ فِي مَقَامِ أَبِيكَ.',
+    ], answer: 0,
+    explanation: '«أبوك» مبتدأ مرفوع بالواو لأنه من الأسماء الخمسة (علامة فرعية).',
+    src: { file: SRC_MD, page: 2, excerpt: 'أبواك الرحيمان يسعيان لرفعتك', treatment: 'منقول' } },
+  { id: 'Q44', section: 'grammar', topic: 'اسم ليس وخبرها', marks: 2,
+    q: 'في قولنا: «لَيْسَ الْمَرْءُ بِأَبِيهِ وَلَا بِأَخِيهِ»، إعراب «المرء»:',
+    options: [
+      'اسم «ليس» مرفوع بالضمة الظاهرة.',
+      'خبر «ليس» منصوب.',
+      'فاعل مرفوع بالواو.',
+      'مبتدأ مرفوع بالألف.',
+    ], answer: 0,
+    explanation: '«المرء» اسم «ليس» مرفوع بالضمة الظاهرة، و«بأبيه» خبر منصوب.',
+    src: { file: SRC_PDF, page: 5, excerpt: 'ليس المرء بأمه وأبيه', treatment: 'منقول' } },
+]);
+
+/* ================= الإملاء (Q45–Q48) ================= */
+push([
+  { id: 'Q45', section: 'spelling', topic: 'التاء المربوطة والهاء', marks: 2,
+    q: 'ميِّز السبب الإملائي الصحيح للفرق بين رسم التاء المربوطة في كلمة (رعاة) والهاء في كلمة (وجه) عند النطق بالوصل والوقف:',
+    options: [
+      'التاء المربوطة تُنطق تاءً عند الوصل وهاءً عند الوقف، والهاء تُنطق هاءً في الحالين.',
+      'التاء المربوطة تُنطق هاءً في الحالين، والهاء تُنطق تاءً عند الوصل.',
+      'التاء المربوطة تُنطق تاءً في الحالين، والهاء تُنطق هاءً عند الوقف.',
+      'التاء المربوطة والهاء تُنطقان هاءً عند الوصل وتُفرَّقان بالنقطتين عند الوقف.',
+    ], answer: 0,
+    explanation: 'التاء المربوطة تاء وصلًا وهاء وقفًا، والهاء هاء في الحالين.',
+    src: { file: SRC_MD, page: 2, excerpt: 'الفرق بين رسم التاء المربوطة في كلمة رعاة والهاء في كلمة وجه', treatment: 'منقول' } },
+  { id: 'Q46', section: 'spelling', topic: 'التاء المربوطة', marks: 2,
+    q: 'كلمة (رُعَاة) خُتمت بـ:',
+    options: ['تاء مربوطة.', 'هاء أصلية.', 'تاء مفتوحة.', 'ألف مقصورة.'], answer: 0,
+    explanation: '«رعاة» جمع «راعٍ»، وتُختم بتاء مربوطة.',
+    src: { file: SRC_MD, page: 2, excerpt: 'كلمة رعاة', treatment: 'منقول' } },
+  { id: 'Q47', section: 'spelling', topic: 'الهمزة المتوسطة', marks: 2,
+    q: 'الكلمة المكتوبة كتابةً إملائية صحيحة:',
+    options: ['مَسْؤُول.', 'مَسْئُول.', 'مَسْوُول.', 'مَسْأُول.'], answer: 0,
+    explanation: 'الهمزة المتوسطة على الواو؛ لأنها ساكنة بعد ضمة، فتُكتب: «مسؤول».',
+    src: { file: SRC_MD, page: 1, excerpt: 'المؤسسة التي تؤمن بالمسئولية', treatment: 'تصحيح إملائي' } },
+  { id: 'Q48', section: 'spelling', topic: 'همزة الوصل والألف اللينة', marks: 2,
+    q: 'الكلمة التي رُسمت ألفها وهمزتها رسمًا إملائيًّا صحيحًا:',
+    options: ['اسْتِصْلَاح.', 'إِسْتِصْلَاح.', 'اسْتِصْلاح.', 'أَسْتِصْلَاح.'], answer: 0,
+    explanation: 'همزة الوصل تُرسم ألفًا دون همزة، والألف اللينة قائمة: «استصلاح».',
+    src: { file: SRC_MD, page: 1, excerpt: 'استصلاح الأراضي', treatment: 'تصحيح إملائي' } },
+]);
+
+/* ================= المهارات الحجاجية (Q49–Q51) ================= */
+push([
+  { id: 'Q49', section: 'expression', topic: 'الوظيفة الحجاجية', marks: 2,
+    q: '«يدعو بعض التربويين إلى الاعتماد الكلي على الذكاء الاصطناعي في إعداد الاختبارات... غير أن هذا الطرح يغفل أبعاد الفروق الفردية واللمسة الإنسانية». ما الوظيفة الحجاجية للجملة التي بين قوسين؟',
+    options: [
+      'استشهاد بدليل نقلي لتأييد رأي التربويين.',
+      'تفنيد للزعم وبيان موضع الخلل فيه.',
+      'إعادة صياغة للمقدمة الحجاجية الأولى.',
+      'نتيجة منطقية لازمة عن الشطر الأول.',
+    ], answer: 1,
+    explanation: 'الجملة تفنّد زعم التربويين ببيان موضع الخلل (إغفال الفروق الفردية).',
+    src: { file: SRC_MD, page: 1, excerpt: 'غير أن هذا الطرح يغفل أبعاد الفروق الفردية', treatment: 'منقول' } },
+  { id: 'Q50', section: 'expression', topic: 'بناء الحجة', marks: 2,
+    q: 'ما الاستراتيجية الحجاجية الغالبة في الفقرة السابقة؟',
+    options: [
+      'عرض رأي الخصم (الزعم) ثم تفنيده بحجة نقدية مضادة.',
+      'سرد الأحداث التاريخية.',
+      'الاكتفاء بعرض الرأي دون مناقشته.',
+      'الاعتماد على الأدلة الرياضية.',
+    ], answer: 0,
+    explanation: 'الفقرة تعرض الزعم ثم تفنّده، وهي استراتيجية العرض والتفنيد.',
+    src: { file: SRC_MD, page: 1, excerpt: 'عرض رأي الخصم ثم تفنيده', treatment: 'استنتاج' } },
+  { id: 'Q51', section: 'expression', topic: 'نوع الخطاب', marks: 2,
+    q: 'حدّد نوع الخطاب الغالب في نصّ حجاجي يعرض رأيًا ثم ينقده.',
+    options: ['وصفي.', 'سردي.', 'حجاجي نقدي.', 'إخباري بحت.'], answer: 2,
+    explanation: 'عرض الرأي ثم نقده يجعل الخطاب حجاجيًّا نقديًّا.',
+    src: { file: SRC_MD, page: 1, excerpt: 'الوظيفة الحجاجية', treatment: 'استنتاج' } },
+]);
+
+/* ================= سؤال التعبير ================= */
+const WRITING = { id: 'W01', section: 'writing', topic: 'التعبير (المقالي)', q: WRITING_PROMPT, marks: 18 };
+
+/* ================= الأسئلة المفاجئة (نقاط منفصلة عن الدرجة الرسمية) ================= */
+const SURPRISE = [
+  { id: 'J01', section: 'surprise', bonus: true, topic: 'سؤال', marks: 0,
+    q: 'خسرتي كيرو كم قيم هالاسبوع؟',
+    options: ['1', '2', '3', '3+'], answer: 1,
+    explanation: 'الإجابة المعتمدة: «2».',
+    src: { file: 'README.md', page: null, excerpt: 'SURPRISE QUESTION J01', treatment: 'كما ورد' } },
+  { id: 'J02', section: 'surprise', bonus: true, topic: 'سؤال', marks: 0,
+    q: 'البطل ستو كم يحصل صحه من السوبر حقته؟',
+    options: ['400', '490', '560', '700'], answer: 2,
+    explanation: 'قدرة Gaso-Heal النجمية لستو عند مستوى القدرة 11 تعيد 560 صحة (وفق تحديث فبراير 2026 الرسمي: من 544 إلى 560).',
+    src: { file: 'README.md', page: null, excerpt: 'SURPRISE QUESTION J02', treatment: 'كما ورد' } },
 ];
-translation.forEach((v, i) => Q.push({ id: 'T' + String(i + 1).padStart(2, '0'), section: 'translation', topic: 'Translation (Ar/En)', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 2.5, src: { file: SRC, excerpt: 'Translation items', treatment: 'copied/corrected' } }));
 
-const literature = [
-  ['Around the World in Eighty Days: Why was Fogg so confident that he could travel around the world in eighty days?', ['Because he owned his own train company.', 'Because he had calculated the journey precisely and trusted his plan.', 'Because Passepartout promised to pay for everything.', 'Because the newspapers told him it was impossible.'], 1, 'Fogg relied on careful calculation and a methodical plan.'],
-  ["How does the description of Fogg's house reflect his personality?", ['It is untidy and full of surprises.', 'It is neat, precise and orderly, like Fogg himself.', 'It is decorated with photographs of famous people.', 'It changes every week according to his mood.'], 1, 'His orderly, precise house mirrors his exact, methodical nature.'],
-  ["What differences can you see between Fogg and Passepartout's personalities?", ['Both of them are equally calm and unemotional.', 'Fogg is calm and exact, while Passepartout is more excitable and impulsive.', 'Fogg is lazy, while Passepartout works very hard.', 'Passepartout is richer and more educated than Fogg.'], 1, 'Fogg is calm and exact; Passepartout is livelier and more impulsive.'],
-  ['Do you think Fogg and Passepartout will get along well in the future?', ['No, because they disagree about everything.', 'Yes, because their different personalities complement each other.', 'No, because Fogg dismisses Passepartout immediately.', 'Yes, because they are exactly the same person.'], 1, 'Their complementary personalities help them cooperate.'],
-  ["Why do you think Fogg's interview with Passepartout was so short?", ['Because Passepartout was not interested in the job.', 'Because Fogg valued precise, business-like efficiency.', 'Because the interview happened by telephone.', 'Because Fogg could not speak French at all.'], 1, "Fogg's brief interview reflects his exact, efficient character."],
-];
-literature.forEach((v, i) => Q.push({ id: 'L' + String(i + 1).padStart(2, '0'), section: 'literature', topic: 'Literature', q: v[0], options: v[1], answer: v[2], explanation: v[3], marks: 2, src: { file: SRC, excerpt: 'Around the World in Eighty Days questions', treatment: 'rephrased' } }));
+const BONUS_PER_SURPRISE = 5;
 
-const WRITING = { id: 'W01', section: 'writing', topic: 'Paragraph writing', q: WRITING_PROMPT, marks: 20 };
-
-/* ---------------- validation ---------------- */
+/* ---------------- التحقق ---------------- */
 function validateBank() {
   const errors = [];
   const ids = new Set();
   const texts = new Map();
-  for (const it of Q) {
-    if (ids.has(it.id)) errors.push('Duplicate id: ' + it.id);
+  for (const it of Q.concat(SURPRISE)) {
+    if (ids.has(it.id)) errors.push('معرّف مكرر: ' + it.id);
     ids.add(it.id);
-    if (!it.q || !String(it.q).trim()) errors.push('Missing question text: ' + it.id);
-    if (!Array.isArray(it.options) || it.options.length < 2) errors.push('Missing choices: ' + it.id);
-    if (!Number.isInteger(it.answer) || it.answer < 0 || it.answer >= (it.options || []).length) errors.push('Invalid answer key: ' + it.id);
-    if (!it.marks || it.marks <= 0) errors.push('Missing marks: ' + it.id);
+    if (!it.q || !String(it.q).trim()) errors.push('نص سؤال مفقود: ' + it.id);
+    if (!Array.isArray(it.options) || it.options.length < 2) errors.push('خيارات مفقودة: ' + it.id);
+    if (!Number.isInteger(it.answer) || it.answer < 0 || it.answer >= (it.options || []).length) errors.push('مفتاح إجابة غير صالح: ' + it.id);
     const norm = (it.options || []).map((o) => String(o).trim().toLowerCase());
-    if (new Set(norm).size !== norm.length) errors.push('Duplicate choices in ' + it.id);
-    const key = String(it.q).trim().toLowerCase();
-    if (texts.has(key)) errors.push('Duplicate question text: ' + it.id + ' / ' + texts.get(key));
+    if (new Set(norm).size !== norm.length) errors.push('خيارات مكررة في ' + it.id);
+    if (!it.bonus && (!it.marks || it.marks <= 0)) errors.push('درجة مفقودة: ' + it.id);
+    if (!it.src || !it.src.file) errors.push('سجل توثيق مفقود: ' + it.id);
+    const key = String(it.q).trim();
+    if (texts.has(key)) errors.push('نص سؤال مكرر: ' + it.id + ' / ' + texts.get(key));
     else texts.set(key, it.id);
   }
   const bySec = {};
@@ -170,66 +589,100 @@ function validateBank() {
   for (const b of BLUEPRINT) {
     if (b.section === 'writing') continue;
     const n = bySec[b.section] || 0;
-    if (n !== b.count) errors.push('Section ' + b.section + ' has ' + n + ' questions, expected ' + b.count);
+    if (n !== b.count) errors.push('القسم ' + b.section + ' فيه ' + n + ' سؤالًا والمتوقع ' + b.count);
   }
-  if (!READING_PASSAGE || !READING_PASSAGE.text) errors.push('Missing reading passage');
-  if (!WRITING || !WRITING.q) errors.push('Missing paragraph prompt');
+  if (Q.length !== 51) errors.push('عدد الأسئلة المعيارية ' + Q.length + ' والمطلوب 51');
+  if (SURPRISE.length !== 2) errors.push('عدد الأسئلة المفاجئة ' + SURPRISE.length + ' والمطلوب 2');
+  if (!READING_PASSAGES.length) errors.push('قطعة القراءة مفقودة');
+  if (!WRITING || !WRITING.q) errors.push('سؤال التعبير مفقود');
   const sum = BLUEPRINT.reduce((s, b) => s + b.max, 0);
-  if (sum !== 120) errors.push('Blueprint total is not 120: ' + sum);
+  if (sum !== 120) errors.push('مجموع المخطط ليس 120: ' + sum);
   const rubricSum = WRITING_RUBRIC.reduce((s, r) => s + r.marks, 0);
-  if (rubricSum !== 20) errors.push('Writing rubric total is not 20: ' + rubricSum);
+  if (rubricSum !== WRITING.marks) errors.push('مجموع سلّم التعبير ' + rubricSum + ' لا يساوي ' + WRITING.marks);
   return { ok: errors.length === 0, errors, counts: bySec, totalMarks: sum };
 }
 
-/* ---------------- public payload (NO answer key) ---------------- */
+/* ---------------- الحمولة العامة (بلا مفتاح إجابة) ---------------- */
 function publicExam() {
+  const all = Q.map((it) => ({
+    id: it.id, section: it.section, topic: it.topic, q: it.q, options: it.options,
+    marks: it.marks, bonus: false,
+  }));
+  // الأسئلة المفاجئة تظهر كأسئلة عادية في نهاية الامتحان، دون أي إشارة إلى كونها إضافية.
+  const surprises = SURPRISE.map((it) => ({
+    id: it.id, section: it.section, topic: it.topic, q: it.q, options: it.options,
+    marks: 0, bonus: false,
+  }));
   return {
     blueprint: BLUEPRINT,
     totalMarks: BLUEPRINT.reduce((s, b) => s + b.max, 0),
-    readingPassage: READING_PASSAGE,
+    readingPassages: READING_PASSAGES,
     writingPrompt: WRITING_PROMPT,
     writingRubric: WRITING_RUBRIC,
+    writingMarks: WRITING.marks,
     durationMinutes: 60,
     hardLimitMinutes: 90,
-    questions: Q.map((it) => ({ id: it.id, section: it.section, topic: it.topic, q: it.q, options: it.options, marks: it.marks })),
+    questions: all.concat(surprises),
   };
 }
 
-/* ---------------- grading (server-side only) ---------------- */
+/* ---------------- التصحيح (على الخادم فقط) ---------------- */
 function gradeObjective(answers) {
   const details = [];
+  let objective = 0, correct = 0, answered = 0;
   const bySection = {};
-  let objective = 0, objectiveMax = 0, correct = 0, answered = 0, unanswered = 0;
   for (const it of Q) {
-    const marks = it.marks;
-    objectiveMax += marks;
     const raw = answers ? answers[it.id] : undefined;
     const isAns = raw !== undefined && raw !== null && raw !== '';
-    let ok = false, studentAns = raw;
-    if (isAns) {
-      answered++;
-      const s = String(raw);
-      const chosen = it.options.findIndex((o) => String(o) === s);
-      ok = chosen === it.answer;
-      studentAns = chosen >= 0 ? it.options[chosen] : s;
-    } else {
-      unanswered++;
-    }
-    const awarded = ok ? marks : 0;
-    objective += awarded;
-    if (ok) correct++;
-    if (!bySection[it.section]) bySection[it.section] = { correct: 0, total: 0, score: 0, max: 0, count: 0 };
-    const s = bySection[it.section];
-    s.count++; s.max += marks; s.score += awarded; s.total++;
-    if (ok) s.correct++;
+    const correctAnswer = it.options[it.answer];
+    const ok = isAns && String(raw) === String(correctAnswer);
+    if (isAns) answered++;
+    if (ok) { correct++; objective += it.marks; }
+    const s = bySection[it.section] = bySection[it.section] || { correct: 0, count: 0, score: 0, max: 0 };
+    s.count++; s.max += it.marks;
+    if (ok) { s.correct++; s.score += it.marks; }
     details.push({
-      id: it.id, section: it.section, question: it.q, options: it.options, marks,
-      studentAnswer: isAns ? studentAns : null,
-      correctAnswer: it.options[it.answer],
-      correct: ok, answered: isAns, explanation: it.explanation,
+      id: it.id, section: it.section, question: it.q, options: it.options, marks: it.marks,
+      studentAnswer: isAns ? raw : null, correctAnswer, correct: ok, answered: isAns,
+      explanation: it.explanation,
     });
   }
-  return { objective, objectiveMax, correct, answered, unanswered, bySection, details };
+  return {
+    objective, objectiveMax: 102, correct, answered,
+    unanswered: Q.length - answered, total: Q.length, bySection, details,
+  };
 }
 
-module.exports = { BLUEPRINT, WRITING_RUBRIC, READING_PASSAGE, WRITING_PROMPT, WRITING, Q, validateBank, publicExam, gradeObjective };
+/* تصحيح الأسئلة المفاجئة بشكل منفصل (نقاط مكافأة فقط، لا تمس الدرجة الرسمية) */
+function gradeSurprise(answers) {
+  const details = [];
+  let correct = 0;
+  for (const it of SURPRISE) {
+    const raw = answers ? answers[it.id] : undefined;
+    const isAns = raw !== undefined && raw !== null && raw !== '';
+    const correctAnswer = it.options[it.answer];
+    const ok = isAns && String(raw) === String(correctAnswer);
+    if (ok) correct++;
+    details.push({
+      id: it.id, section: it.section, question: it.q, options: it.options, marks: 0,
+      studentAnswer: isAns ? raw : null, correctAnswer, correct: ok, answered: isAns,
+      explanation: it.explanation, bonus: true,
+    });
+  }
+  return { correct, total: SURPRISE.length, bonusTotal: correct * BONUS_PER_SURPRISE, details };
+}
+
+/* ---------------- سجل التوثيق ---------------- */
+function sourceLedger() {
+  return Q.concat([WRITING], SURPRISE).map((it) => ({
+    id: it.id, section: it.section, topic: it.topic, type: it.section === 'writing' ? 'writing' : 'mcq',
+    question: it.q, options: it.options || null, answer: it.options ? it.options[it.answer] : null,
+    marks: it.marks, source: it.src,
+  }));
+}
+
+module.exports = {
+  BLUEPRINT, WRITING_RUBRIC, READING_PASSAGES, WRITING_PROMPT, WRITING,
+  Q, SURPRISE, BONUS_PER_SURPRISE,
+  validateBank, publicExam, gradeObjective, gradeSurprise, sourceLedger,
+};
