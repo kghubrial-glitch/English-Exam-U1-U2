@@ -11,15 +11,17 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const bank = require('./bank.js');
+const CONFIG = require('./config.js');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = path.join(__dirname, 'data');
 const ATTEMPT_FILE = path.join(DATA_DIR, 'attempts.json');
+const SUBMISSION_DIR = path.join(DATA_DIR, 'submissions');
 
-/* Confirm the blueprint totals exactly 120 at startup. */
+/* تأكيد أن المخطط يطابق الدرجة الرسمية المعرَّفة في config.js عند الإقلاع. */
 const TOTAL_MARKS = bank.BLUEPRINT.reduce((s, b) => s + b.max, 0);
-if (TOTAL_MARKS !== 120) {
-  console.error('FATAL: blueprint total is ' + TOTAL_MARKS + ', expected 120');
+if (TOTAL_MARKS !== CONFIG.totalMarks) {
+  console.error('FATAL: blueprint total is ' + TOTAL_MARKS + ', expected ' + CONFIG.totalMarks);
   process.exit(1);
 }
 const validation = bank.validateBank();
@@ -28,7 +30,7 @@ if (!validation.ok) {
   process.exit(1);
 }
 
-/* ---------- server-side attempt registry (best effort) ---------- */
+/* ---------- سجل المحاولات على الخادم (مفتاحه رمز المادة) ---------- */
 let attempts = { byId: {}, byHash: {} };
 try { attempts = JSON.parse(fs.readFileSync(ATTEMPT_FILE, 'utf8')); } catch (e) {}
 function saveAttempts() {
@@ -37,10 +39,17 @@ function saveAttempts() {
     fs.writeFileSync(ATTEMPT_FILE, JSON.stringify(attempts, null, 2));
   } catch (e) { console.warn('attempts not persisted:', e.message); }
 }
+/* رمز المادة جزء من المفتاح حتى لا تتقاطع محاولات المواد المختلفة. */
 function clientHash(req) {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
   const ua = req.headers['user-agent'] || '';
-  return crypto.createHash('sha256').update('u1u2|' + ip + '|' + ua).digest('hex').slice(0, 32);
+  return crypto.createHash('sha256').update(CONFIG.code + '|' + ip + '|' + ua).digest('hex').slice(0, 32);
+}
+/* رقم إصدار آمن لاسم الملف (منعًا لأي التباس في المسارات). */
+function safeExamId(id) { return String(id || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 64); }
+function readSubmission(examId) {
+  try { return JSON.parse(fs.readFileSync(path.join(SUBMISSION_DIR, safeExamId(examId) + '.json'), 'utf8')); }
+  catch (e) { return null; }
 }
 
 function sendJson(res, code, obj) {
@@ -72,6 +81,15 @@ const server = http.createServer(async (req, res) => {
     if (ex && ex.status === 'completed') return sendJson(res, 200, { ok: true, blocked: true, prior: ex });
     return sendJson(res, 200, { ok: true, blocked: false, prior: ex || null });
   }
+  /* إرجاع نتيجة محاولة مكتملة كي تظهر بعد إعادة التحميل (لا يكشف مفتاح الإجابة قبل التسليم). */
+  if (url === '/api/result' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    const examId = safeExamId(q.get('examId'));
+    if (!examId) return sendJson(res, 400, { ok: false, error: 'missing examId' });
+    const rec = readSubmission(examId);
+    if (!rec) return sendJson(res, 404, { ok: false, error: 'not_found' });
+    return sendJson(res, 200, { ok: true, result: rec.graded, surprise: rec.surprise, record: rec });
+  }
   if (url === '/api/submit' && req.method === 'POST') {
     const body = await readBody(req);
     const sub = body.submission || {};
@@ -80,25 +98,30 @@ const server = http.createServer(async (req, res) => {
     const result = bank.gradeObjective(sub.answers || {});
     const surprise = bank.gradeSurprise(sub.answers || {});
 
-    if (!attempts.byId[sub.examId]) {
+    const examId = safeExamId(sub.examId);
+    let stored = false;
+    if (!attempts.byId[examId]) {
       const record = Object.assign({}, sub, {
+        examId: examId,
+        examCode: CONFIG.code,
         graded: { objective: result.objective, objectiveMax: result.objectiveMax,
                   correct: result.correct, answered: result.answered, unanswered: result.unanswered,
-                  bySection: result.bySection },
+                  bySection: result.bySection, details: result.details },
         surprise: { correct: surprise.correct, total: surprise.total, bonusTotal: surprise.bonusTotal,
                     details: surprise.details },
         serverReceivedAt: Date.now(),
       });
-      const entry = { examId: sub.examId, name: sub.name || '', status: 'completed', submittedAt: sub.submittedAt || Date.now() };
-      attempts.byId[sub.examId] = entry;
+      const entry = { examId: examId, name: sub.name || '', status: 'completed', submittedAt: sub.submittedAt || Date.now() };
+      attempts.byId[examId] = entry;
       attempts.byHash[clientHash(req)] = entry;
       saveAttempts();
       try {
-        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(path.join(DATA_DIR, 'submission_' + sub.examId + '.json'), JSON.stringify(record, null, 2));
+        if (!fs.existsSync(SUBMISSION_DIR)) fs.mkdirSync(SUBMISSION_DIR, { recursive: true });
+        fs.writeFileSync(path.join(SUBMISSION_DIR, examId + '.json'), JSON.stringify(record, null, 2));
+        stored = true;
       } catch (e) { console.warn('submission not persisted:', e.message); }
     }
-    return sendJson(res, 200, { ok: true, stored: true, examId: sub.examId, result: result, surprise: surprise });
+    return sendJson(res, 200, { ok: true, stored: stored, examId: examId, result: result, surprise: surprise });
   }
 
   let file = url === '/' ? '/index.html' : url;
@@ -110,4 +133,4 @@ const server = http.createServer(async (req, res) => {
     res.end(data);
   });
 });
-server.listen(PORT, () => console.log('اختبار اللغة العربية U1 running on http://localhost:' + PORT + '  (total marks: ' + TOTAL_MARKS + ')'));
+server.listen(PORT, () => console.log('اختبار ' + CONFIG.subjectAr + ' [' + CONFIG.code + '] running on http://localhost:' + PORT + '  (total marks: ' + TOTAL_MARKS + ')'));

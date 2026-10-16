@@ -127,6 +127,33 @@ details.rev summary{ cursor:pointer; padding:8px 4px; font-weight:700; min-heigh
 .pill.done{ background:#1c3a2c; color:#b7f7cf; }
 .pill.pending{ background:#3a3416; color:#ffe08a; }
 .explain{ color:var(--muted); margin-top:6px; }
+.wrong{ color:#fca5a5; font-weight:700; }
+.right{ color:#86efac; font-weight:700; }
+
+/* بطاقة الدرجة */
+.score-hero{
+  border:1px solid var(--line); border-radius:var(--radius); padding:18px 16px; margin:12px 0;
+  text-align:center; background:var(--card2);
+}
+.score-hero .score-num{ font-size:2.4rem; font-weight:700; line-height:1.3; direction:ltr; }
+.score-hero .score-sub{ font-size:1.05rem; margin-top:4px; }
+.score-hero .score-note{ color:var(--muted); font-size:.9rem; margin-top:8px; line-height:1.8; }
+.score-hero.band-a{ border-color:#2c6b4c; background:#12301f; }
+.score-hero.band-b{ border-color:#2c6b4c; background:#152b22; }
+.score-hero.band-c{ border-color:#7a6420; background:#2b2712; }
+.score-hero.band-d{ border-color:#7a6420; background:#2a2312; }
+.score-hero.band-e{ border-color:#7a3030; background:#2a1616; }
+.score-hero.band-f{ border-color:#7a3030; background:#331414; }
+
+/* أشرطة الأقسام */
+.bar-row{ margin:10px 0; }
+.bar-head{ display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:4px; }
+.bar{ height:12px; background:#111c33; border:1px solid var(--line); border-radius:999px; overflow:hidden; }
+.bar span{ display:block; height:100%; width:0; }
+.bar span.ok{ background:var(--good); }
+.bar span.mid{ background:#d9a53b; }
+.bar span.low{ background:var(--bad); }
+.bar span.pending{ background:repeating-linear-gradient(45deg,#3a3416,#3a3416 6px,#2a2712 6px,#2a2712 12px); }
 
 /* لوحات التنبيه */
 .warnbanner{
@@ -138,13 +165,13 @@ details.rev summary{ cursor:pointer; padding:8px 4px; font-weight:700; min-heigh
   border-radius:12px; padding:12px 14px; margin:10px 0; line-height:1.9;
 }
 
-/* الإشعارات العائمة */
+/* الإشعارات العائمة (لا تحجب النقر على أزرار الأسفل) */
 .toast{
   position:fixed; inset-inline:0; bottom:14px; display:flex; flex-direction:column;
   align-items:center; gap:8px; pointer-events:none; z-index:50; padding:0 10px;
 }
 .toast > div{
-  pointer-events:auto; max-width:760px; width:100%;
+  pointer-events:none; max-width:760px; width:100%;
   background:#1d2c49; border:1px solid var(--line); color:var(--fg);
   border-radius:12px; padding:12px 16px; box-shadow:0 8px 24px rgba(0,0,0,.35);
   line-height:1.9;

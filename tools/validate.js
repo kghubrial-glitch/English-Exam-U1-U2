@@ -7,7 +7,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-const bank = require('../bank.js');
+const bank = require("../bank.js");
+const CONFIG = require("../config.js");
 
 const OUT = path.join(__dirname, '..', 'data', 'question-bank.json');
 const problems = [];
@@ -28,7 +29,7 @@ for (const it of bank.Q.concat(bank.SURPRISE)) {
 if (bank.Q.length !== 51) problems.push('عدد الأسئلة المعيارية ليس 51: ' + bank.Q.length);
 if (bank.SURPRISE.length !== 2) problems.push('عدد الأسئلة المفاجئة ليس 2: ' + bank.SURPRISE.length);
 if (bank.WRITING_RUBRIC.reduce((s, r) => s + r.marks, 0) !== bank.WRITING.marks) problems.push('مجموع سلّم التعبير لا يساوي درجة التعبير');
-if (bank.BLUEPRINT.reduce((s, b) => s + b.max, 0) !== 120) problems.push('مجموع المخطط ليس 120');
+if (bank.BLUEPRINT.reduce((s, b) => s + b.max, 0) !== CONFIG.totalMarks) problems.push('مجموع المخطط لا يساوي ' + CONFIG.totalMarks);
 if (!bank.READING_PASSAGES.length) problems.push('لا توجد نصوص قراءة');
 if (!bank.WRITING_PROMPT) problems.push('لا يوجد سؤال تعبير');
 if (bank.SURPRISE[0].options[bank.SURPRISE[0].answer] !== '2') problems.push('إجابة J01 ليست 2');
@@ -54,7 +55,7 @@ try {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify({
     generatedAt: new Date().toISOString(),
-    totalMarks: 120,
+    totalMarks: CONFIG.totalMarks,
     blueprint: bank.BLUEPRINT,
     ledger: bank.sourceLedger(),
   }, null, 2));

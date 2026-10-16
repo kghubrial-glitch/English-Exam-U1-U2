@@ -14,6 +14,8 @@
 const SRC_MD = 'reference/exam1-noanswers.md';
 const SRC_PDF = 'reference/اختبار لغة عربية الوحدة الأولي + نموذج الإجابة للصف الثاني الثانوي بكالوريا الترم الأول 2027 من كتاب ن والقلم.pdf';
 
+const CONFIG = require('./config.js');
+
 /* ---------------- مخطط الدرجات (المجموع = 120) ---------------- */
 const BLUEPRINT = [
   { section: 'reading',    arName: 'القراءة والفهم',     type: 'mcq', count: 12, marksEach: 2, max: 24 },
@@ -596,7 +598,7 @@ function validateBank() {
   if (!READING_PASSAGES.length) errors.push('قطعة القراءة مفقودة');
   if (!WRITING || !WRITING.q) errors.push('سؤال التعبير مفقود');
   const sum = BLUEPRINT.reduce((s, b) => s + b.max, 0);
-  if (sum !== 120) errors.push('مجموع المخطط ليس 120: ' + sum);
+  if (sum !== CONFIG.totalMarks) errors.push('مجموع المخطط ' + sum + ' لا يساوي ' + CONFIG.totalMarks);
   const rubricSum = WRITING_RUBRIC.reduce((s, r) => s + r.marks, 0);
   if (rubricSum !== WRITING.marks) errors.push('مجموع سلّم التعبير ' + rubricSum + ' لا يساوي ' + WRITING.marks);
   return { ok: errors.length === 0, errors, counts: bySec, totalMarks: sum };
@@ -614,14 +616,18 @@ function publicExam() {
     marks: 0, bonus: false,
   }));
   return {
+    code: CONFIG.code,
+    titleAr: CONFIG.titleAr,
+    subjectAr: CONFIG.subjectAr,
+    gradeAr: CONFIG.gradeAr,
     blueprint: BLUEPRINT,
     totalMarks: BLUEPRINT.reduce((s, b) => s + b.max, 0),
     readingPassages: READING_PASSAGES,
     writingPrompt: WRITING_PROMPT,
     writingRubric: WRITING_RUBRIC,
     writingMarks: WRITING.marks,
-    durationMinutes: 60,
-    hardLimitMinutes: 90,
+    durationMinutes: CONFIG.durationMinutes,
+    hardLimitMinutes: CONFIG.hardLimitMinutes,
     questions: all.concat(surprises),
   };
 }
